@@ -1,55 +1,85 @@
 #!/usr/bin/env node
-"use strict";
-require( '../lib/core-upgrade.js' );
+'use strict';
+require('../lib/core-upgrade.js');
 
-var	request = require( 'request' ),
-	yargs = require( 'yargs' ),
-	domino = require( 'domino' ),
-	url = require( 'url' ),
-	zlib = require( 'zlib' ),
-	JSUtils = require( '../lib/jsutils.js' ).JSUtils,
-	Util = require( '../lib/mediawiki.Util.js' ).Util,
-	DU = require( '../lib/mediawiki.DOMUtils.js' ).DOMUtils,
-	TemplateRequest = require( '../lib/mediawiki.ApiRequest.js' ).TemplateRequest,
-	ParsoidConfig = require( '../lib/mediawiki.ParsoidConfig' ).ParsoidConfig,
-	MWParserEnvironment = require( '../lib/mediawiki.parser.environment.js' ).MWParserEnvironment,
-	Diff = require('../lib/mediawiki.Diff.js').Diff;
+var request = require('request');
+var yargs = require('yargs');
+var domino = require('domino');
+var url = require('url');
+var zlib = require('zlib');
+var JSUtils = require('../lib/jsutils.js').JSUtils;
+var Util = require('../lib/mediawiki.Util.js').Util;
+var DU = require('../lib/mediawiki.DOMUtils.js').DOMUtils;
+var TemplateRequest = require('../lib/mediawiki.ApiRequest.js').TemplateRequest;
+var ParsoidConfig = require('../lib/mediawiki.ParsoidConfig').ParsoidConfig;
+var MWParserEnvironment = require('../lib/mediawiki.parser.environment.js').MWParserEnvironment;
+var Diff = require('../lib/mediawiki.Diff.js').Diff;
 
-var plainCallback = function ( env, err, results ) {
-	var i, result, output = '',
-		semanticDiffs = 0, syntacticDiffs = 0,
-		testDivider = ( new Array( 70 ) ).join( '=' ) + '\n',
-		diffDivider = ( new Array( 70 ) ).join( '-' ) + '\n';
 
-	if ( err ) {
+function displayDiff(type, count) {
+	var pad = (10 - type.length);  // Be positive!
+	type = type[0].toUpperCase() + type.substr(1);
+	return type + ' differences' + ' '.repeat(pad) + ': ' + count + '\n';
+}
+
+var plainFormat = function(err, prefix, title, results, profile) {
+	var testDivider = '='.repeat(70) + '\n';
+	var diffDivider = '-'.repeat(70) + '\n';
+	var output = '';
+
+	if (err) {
 		output += 'Parser failure!\n\n';
 		output += diffDivider;
 		output += err;
+		if (err.stack) {
+			output += '\nStack trace: ' + err.stack;
+		}
 	} else {
-		for ( i = 0; i < results.length; i++ ) {
-			result = results[i];
-
+		var diffs = {
+			html2wt: {
+				semantic: 0,
+				syntactic: 0,
+			},
+			selser: {
+				semantic: 0,
+				syntactic: 0,
+			},
+		};
+		var semanticDiffs = 0;
+		var syntacticDiffs = 0;
+		for (var i = 0; i < results.length; i++) {
+			var result = results[i];
 			output += testDivider;
-			if ( result.type === 'fail' ) {
-				output += 'Semantic difference' + (result.selser ? ' (selser)' : '') + ':\n\n';
+			if (result.type === 'fail') {
+				output += 'Semantic difference' +
+					(result.selser ? ' (selser)' : '') + ':\n\n';
 				output += result.wtDiff + '\n';
-				output += diffDivider + 'HTML diff:\n\n' + result.htmlDiff + '\n';
-				semanticDiffs++;
+				output += diffDivider + 'HTML diff:\n\n' +
+					result.htmlDiff + '\n';
+				diffs[result.selser ? 'selser' : 'html2wt'].semantic++;
 			} else {
-				output += 'Syntactic difference' + (result.selser ? ' (selser)' : '') + ':\n\n';
+				output += 'Syntactic difference' +
+					(result.selser ? ' (selser)' : '') + ':\n\n';
 				output += result.wtDiff + '\n';
-				syntacticDiffs++;
+				diffs[result.selser ? 'selser' : 'html2wt'].syntactic++;
 			}
 		}
-
-
 		output += testDivider;
 		output += testDivider;
-		output += "SUMMARY:\n";
-		output += "Semantic differences : " + semanticDiffs + "\n";
-		output += "Syntactic differences: " + syntacticDiffs + "\n";
+		output += 'SUMMARY:\n';
 		output += diffDivider;
-		output += "ALL differences      : " + (semanticDiffs + syntacticDiffs) + "\n";
+		var total = 0;
+		Object.keys(diffs).forEach(function(diff) {
+			output += diff + '\n';
+			output += diffDivider;
+			Object.keys(diffs[diff]).forEach(function(type) {
+				var count = diffs[diff][type];
+				total += count;
+				output += displayDiff(type, count);
+			});
+			output += diffDivider;
+		});
+		output += displayDiff('all', total);
 		output += testDivider;
 		output += testDivider;
 	}
@@ -57,43 +87,40 @@ var plainCallback = function ( env, err, results ) {
 	return output;
 };
 
-var encodeXmlEntities = function( str ) {
-	return str.replace( /&/g, '&amp;' )
-			  .replace( /</g, '&lt;' )
-			  .replace( />/g, '&gt;' );
-};
-
-function encodeAttribute (str) {
-	return encodeXmlEntities(str)
-		.replace(/"/g, '&quot;');
+function encodeXmlEntities(str) {
+	return str.replace(/&/g, '&amp;')
+			.replace(/</g, '&lt;')
+			.replace(/>/g, '&gt;');
 }
 
+function encodeAttribute(str) {
+	return encodeXmlEntities(str).replace(/"/g, '&quot;');
+}
 
-var xmlCallback = function ( env, err, results ) {
+var xmlFormat = function(err, prefix, title, results, profile) {
 	var i, result;
-	var prefix = ( env && env.conf && env.conf.wiki && env.conf.wiki.iwp ) || '';
-	var title = ( env && env.page && env.page.name ) || '';
-
+	var article = encodeAttribute(prefix + ':' + title);
 	var output = '<testsuites>\n';
-	var outputTestSuite = function (selser) {
-			output += '<testsuite name="Roundtrip article ' + encodeAttribute( prefix + ':' + title );
-			if (selser) {
-				output += ' (selser)';
-			}
-			output += '">\n';
+	var outputTestSuite = function(selser) {
+		output += '<testsuite name="Roundtrip article ' + article;
+		if (selser) {
+			output += ' (selser)';
+		}
+		output += '">\n';
 	};
 
-	if ( err ) {
+	if (err) {
 		outputTestSuite(false);
-		output += '<testcase name="entire article"><error type="parserFailedToFinish">';
-		output += encodeXmlEntities( err.stack || err.toString() );
+		output += '<testcase name="entire article">';
+		output += '<error type="parserFailedToFinish">';
+		output += encodeXmlEntities(err.stack || err.toString());
 		output += '</error></testcase>';
 	} else if (!results.length) {
 		outputTestSuite(false);
 	} else {
 		var currentSelser = results[0].selser;
 		outputTestSuite(currentSelser);
-		for ( i = 0; i < results.length; i++ ) {
+		for (i = 0; i < results.length; i++) {
 			result = results[i];
 
 			// When going from normal to selser results, switch to a new
@@ -104,24 +131,24 @@ var xmlCallback = function ( env, err, results ) {
 				outputTestSuite(currentSelser);
 			}
 
-			output += '<testcase name="' + encodeAttribute( prefix + ':' + title );
+			output += '<testcase name="' + article;
 			output += ' character ' + result.offset[0].start + '">\n';
 
-			if ( result.type === 'fail' ) {
+			if (result.type === 'fail') {
 				output += '<failure type="significantHtmlDiff">\n';
 
 				output += '<diff class="wt">\n';
-				output += encodeXmlEntities( result.wtDiff );
+				output += encodeXmlEntities(result.wtDiff);
 				output += '\n</diff>\n';
 
 				output += '<diff class="html">\n';
-				output += encodeXmlEntities( result.htmlDiff );
+				output += encodeXmlEntities(result.htmlDiff);
 				output += '\n</diff>\n';
 
 				output += '</failure>\n';
 			} else {
 				output += '<skipped type="insignificantWikitextDiff">\n';
-				output += encodeXmlEntities( result.wtDiff );
+				output += encodeXmlEntities(result.wtDiff);
 				output += '\n</skipped>\n';
 			}
 
@@ -131,23 +158,21 @@ var xmlCallback = function ( env, err, results ) {
 	output += '</testsuite>\n';
 
 	// Output the profiling data
-	if ( env.profile ) {
-
-		// Delete the total timer to avoid serializing it
-		if (env.profile.time && env.profile.time.total_timer) {
-			delete( env.profile.time.total_timer );
+	if (profile) {
+		// Delete the start time to avoid serializing it
+		if (profile.time && profile.time.start) {
+			delete(profile.time.start);
 		}
-
 		output += '<perfstats>\n';
-		for ( var type in env.profile ) {
-			for ( var prop in env.profile[ type ] ) {
-				output += '<perfstat type="' + DU.encodeXml( type ) + ':';
-				output += DU.encodeXml( prop );
+		Object.keys(profile).forEach(function(type) {
+			Object.keys(profile[type]).forEach(function(prop) {
+				output += '<perfstat type="' + DU.encodeXml(type) + ':';
+				output += DU.encodeXml(prop);
 				output += '">';
-				output += DU.encodeXml( env.profile[ type ][ prop ].toString() );
+				output += DU.encodeXml(profile[type][prop].toString());
 				output += '</perfstat>\n';
-			}
-		}
+			});
+		});
 		output += '</perfstats>\n';
 	}
 	output += '</testsuites>';
@@ -155,548 +180,542 @@ var xmlCallback = function ( env, err, results ) {
 	return output;
 };
 
-var findMatchingNodes = function (root, targetRange, sourceLen) {
-	var currentOffset = null, wasWaiting = false, waitingForEndMatch = false;
+// Find the subset of leaf/non-leaf nodes whose DSR ranges
+// span the wikitext range provided as input.
+var findMatchingNodes = function(env, node, range) {
+	console.assert(DU.isElt(node));
 
-	function walkDOM(element) {
-		var elements = [],
-			precedingNodes = [],
-			attribs = DU.getJSONAttribute(element, 'data-parsoid');
+	// Skip subtrees that are outside our target range
+	var dp = DU.getDataParsoid(node);
+	if (!Util.isValidDSR(dp.dsr) || dp.dsr[0] > range.end || dp.dsr[1] < range.start) {
+		return [];
+	}
 
-		if ( attribs.dsr && attribs.dsr.length ) {
-			var start = attribs.dsr[0] || 0,
-				end = attribs.dsr[1] || sourceLen - 1;
+	// If target range subsumes the node, we are done.
+	if (dp.dsr[0] >= range.start && dp.dsr[1] <= range.end) {
+		return [node];
+	}
 
-			if ( (targetRange.end - 1) < start  || targetRange.start > (end - 1) ) {
-				return null;
-			}
+	// Cannot inspect template content subtree at a finer grained level
+	if (DU.isFirstEncapsulationWrapperNode(node)) {
+		return [node];
+	}
 
-			if ( waitingForEndMatch ) {
-				if ( end >= targetRange.end ) {
-					waitingForEndMatch = false;
+	// Cannot inspect image subtree at a finer grained level
+	var typeOf = node.getAttribute('typeof') || '';
+	if (/\bmw:Image(\/|\s|$)/.test(typeOf) && /^(FIGURE|SPAN)$/.test(node.nodeName)) {
+		return [node];
+	}
+
+	// We are in the target range -- examine children.
+	// 1. Walk past nodes that are before our desired range.
+	// 2. Collect nodes within our desired range.
+	// 3. Stop walking once you move beyond the desired range.
+	var elts = [];
+	var offset = dp.dsr[0];
+	var c = node.firstChild;
+	while (c) {
+		if (DU.isElt(c)) {
+			dp = DU.getDataParsoid(c);
+			var dsr = dp.dsr;
+			if (Util.isValidDSR(dsr)) {
+				if (dsr[1] >= range.start) {
+					// We have an overlap!
+					elts = elts.concat(findMatchingNodes(env, c, range));
 				}
-				return { done: true, nodes: [element] };
-			}
-
-			if ( attribs.dsr[0] !== null && targetRange.start === start && end === targetRange.end ) {
-				return { done: true, nodes: [element] };
-			} else if ( targetRange.start === start ) {
-				waitingForEndMatch = true;
-				if (end < targetRange.end) {
-					// No need to walk children
-					return { done: false, nodes: [element] };
-				}
-			} else if (start > targetRange.start && end < targetRange.end) {
-				// No need to walk children
-				return { done: false, nodes: [element] };
-			}
-		}
-
-		var c = element.firstChild;
-		while (c) {
-
-			wasWaiting = waitingForEndMatch;
-			if ( DU.isElt(c) ) {
-				var res = walkDOM(c);
-				var matchedChildren = res ? res.nodes : null;
-				if ( matchedChildren ) {
-					if ( !currentOffset && attribs.dsr && (attribs.dsr[0] !== null) ) {
-						var elesOnOffset = [];
-						currentOffset = attribs.dsr[0];
-						// Walk the preceding nodes without dsr values and prefix matchedChildren
-						// till we get the desired matching start value.
-						var diff = currentOffset - targetRange.start;
-						while ( precedingNodes.length > 0 && diff > 0 ) {
-							var n = precedingNodes.pop();
-							var len = n.nodeValue.length + (n.nodeType === c.COMMENT_NODE ? 7 : 0);
-							if ( len > diff ) {
-								break;
-							}
-							diff -= len;
-							elesOnOffset.push( n );
-						}
-						elesOnOffset.reverse();
-						matchedChildren = elesOnOffset.concat( matchedChildren );
-					}
-
-					// Check if there's only one child, and make sure it's a node with getAttribute
-					if ( matchedChildren.length === 1 && DU.isElt(matchedChildren[0]) ) {
-						var childAttribs = matchedChildren[0].getAttribute( 'data-parsoid' );
-						if ( childAttribs ) {
-							childAttribs = JSON.parse( childAttribs );
-							if ( childAttribs.dsr && childAttribs.dsr[1]) {
-								if ( childAttribs.dsr[1] >= targetRange.end ) {
-									res.done = true;
-								} else {
-									currentOffset = childAttribs.dsr[1];
-								}
-							}
-						}
-					}
-
-					if (res.done) {
-						res.nodes = matchedChildren;
-						return res;
-					} else {
-						elements = matchedChildren;
-					}
-				} else if (wasWaiting || waitingForEndMatch) {
-					elements.push(c);
-				}
-
-				// Clear out when an element node is encountered.
-				precedingNodes = [];
-			} else if ( c.nodeType === c.TEXT_NODE || c.nodeType === c.COMMENT_NODE ) {
-				if ( currentOffset && ( currentOffset < targetRange.end ) ) {
-					currentOffset += c.nodeValue.length;
-					if ( c.nodeType === c.COMMENT_NODE ) {
-						// Add the length of the '<!--' and '--> bits
-						currentOffset += 7;
-					}
-					if ( currentOffset >= targetRange.end ) {
-						waitingForEndMatch = false;
-					}
-				}
-
-				if (wasWaiting || waitingForEndMatch) {
-					// Part of target range
-					elements.push(c);
-				} else if ( !currentOffset ) {
-					// Accumulate nodes without dsr
-					precedingNodes.push( c );
-				}
-			}
-
-			if ( wasWaiting && !waitingForEndMatch ) {
-				break;
-			}
-
-			// Skip over encapsulated content
-			var typeOf = DU.isElt(c) ? c.getAttribute( 'typeof' ) || '' : '';
-			if (/\bmw:(?:Transclusion\b|Param\b|Extension\/[^\s]+)/.test(typeOf)) {
-				c = DU.skipOverEncapsulatedContent(c);
+				offset = dp.dsr[1];
 			} else {
-				c = c.nextSibling;
-			}
-		}
+				// SSS FIXME: This is defensive coding here.
+				//
+				// This should not happen really anymore.
+				// DSR computation is fairly solid now and
+				// shouldn't be leaving holes.
+				//
+				// If we see no errors in rt-testing runs,
+				// I am going to rip this out.
 
-		var numElements = elements.length;
-		var numChildren = element.childNodes.length;
-		if (numElements === 0) {
-			return null;
-		} else if ( numElements < numChildren ) {
-			return { done: !waitingForEndMatch, nodes: elements } ;
-		} else { /* numElements === numChildren */
-			return { done: !waitingForEndMatch, nodes: [element] } ;
-		}
-	}
+				env.log("error/diff", "Bad dsr for " + c.nodeName + ": "
+					+ c.outerHTML.substr(0, 50));
 
-	return walkDOM(root);
-};
+				if (dp.dsr && typeof (dsr[1]) === 'number') {
+					// We can cope in this case
+					if (dsr[1] >= range.start) {
+						// Update dsr[0]
+						dp.dsr[0] = offset;
 
-var checkIfSignificant = function ( env, offsets, src, body, out, cb, document ) {
+						// We have an overlap!
+						elts = elts.concat(findMatchingNodes(env, c, range));
+					}
+					offset = dp.dsr[1];
+				} else if (offset >= range.start) {
+					// Swallow it wholesale rather than try
+					// to find finer-grained matches in the subtree
+					elts.push(c);
 
-
-	var normalizeWikitext = function ( str ) {
-
-		// Ignore leading tabs vs. leading spaces
-		str = str.replace(/^\t/, ' ');
-		str = str.replace(/\n\t/g, '\n ');
-		// Normalize multiple spaces to single space
-		str = str.replace(/ +/g, " ");
-		// Eliminate spaces around wikitext chars
-		// gwicke: disabled for now- too aggressive IMO
-		//str = str.replace(/([<"'!#\*:;+-=|{}\[\]\/]) /g, "$1");
-		// Ignore capitalization of tags and void tag indications
-		str = str.replace(/<(\/?)([^ >\/]+)((?:[^>\/]|\/(?!>))*)\/?>/g, function(match, close, name, remaining) {
-			return '<' + close + name.toLowerCase() + remaining.replace(/ $/, '') + '>';
-		} );
-		// Ignore whitespace in table cell attributes
-		str = str.replace(/(^|\n|\|(?=\|)|!(?=!))(\{\||\|[\-+]*|!) *([^|\n]*?) *(?=[|\n]|$)/g, '$1$2$3');
-		// Ignore trailing semicolons and spaces in style attributes
-		str = str.replace(/style\s*=\s*"[^"]+"/g, function(match) {
-			return match.replace(/\s|;(?=")/g, '');
-		});
-		// Strip double-quotes
-		str = str.replace(/"([^"]*?)"/g, "$1");
-
-		// Ignore implicit </small> and </center> in table cells or the end
-		// of the string for now
-		str = str.replace(/(^|\n)<\/(?:small|center)>(?=\n[|!]|\n?$)/g, '');
-		str = str.replace(/([|!].*?)<\/(?:small|center)>(?=\n[|!]|\n?$)/gi, '$1');
-
-		return str;
-	};
-
-	var i, k, diff, offset, origOut, newOut, origHTML, newHTML, origOrigHTML, origNewHTML, thisResult, results = [];
-	for ( i = 0; i < offsets.length; i++ ) {
-		thisResult = {};
-		origOrigHTML = '';
-		origNewHTML = '';
-
-		offset = offsets[i];
-
-		thisResult.offset = offset;
-		// console.warn("--processing: " + JSON.stringify(offset));
-
-		if ( offset[0].start === offset[0].end &&
-				out.substr(offset[1].start, offset[1].end - offset[1].start)
-					.match(/^\n?<\/[^>]+>\n?$/) )
-		{
-			// An element was implicitly closed. Fudge the orig offset
-			// slightly so it finds the corresponding elements which have the
-			// original (unclosed) DSR.
-			offset[0].start--;
-		}
-		// console.warn("--orig--");
-		var res = findMatchingNodes( body, offset[0] || {}, src.length);
-		origOut = res ? res.nodes : [];
-		for ( k = 0; k < origOut.length; k++ ) {
-			// node need not be an element always!
-			origOrigHTML += DU.serializeNode(origOut[k], {smartQuote: false});
-		}
-		origHTML = DU.formatHTML( DU.normalizeOut( origOrigHTML ) );
-		// console.warn("# nodes: " + origOut.length);
-		// console.warn("html: " + origHTML);
-
-		// console.warn("--new--");
-		res = findMatchingNodes( document.body, offset[1] || {}, out.length);
-		newOut = res ? res.nodes : [];
-		for ( k = 0; k < newOut.length; k++ ) {
-			// node need not be an element always!
-			origNewHTML += DU.serializeNode(newOut[k], {smartQuote: false});
-		}
-		newHTML = DU.formatHTML( DU.normalizeOut( origNewHTML ) );
-		// console.warn("# nodes: " + newOut.length);
-		// console.warn("html: " + newHTML);
-
-		// compute wt diffs
-		var wt1 = src.substring( offset[0].start, offset[0].end );
-		var wt2 = out.substring( offset[1].start, offset[1].end );
-		//thisResult.wtDiff = Util.contextDiff(wt1, wt2, false, true, true);
-
-		// Get diff substrings from offsets
-		/* jshint loopfunc: true */ // this function doesn't use loop variables
-		var formatDiff = function ( offset, context ) {
-			return [
-			'----',
-			src.substring(offset[0].start - context, offset[0].end + context),
-			'++++',
-			out.substring(offset[1].start - context, offset[1].end + context)
-			].join('\n');
-		}.bind( this, offset );
-
-		diff = Diff.htmlDiff( origHTML, newHTML, false, true, true );
-
-
-		// No context by default
-		thisResult.wtDiff = formatDiff(0);
-
-		// Normalize wts to check if we really have a semantic diff
-		thisResult.type = 'skip';
-		if (diff.length > 0) {
-			var normWT1 = normalizeWikitext(wt1),
-				normWT2 = normalizeWikitext(wt2);
-
-			if ( normWT1 !== normWT2 ) {
-				//console.log( 'normDiff: =======\n' + normWT1 + '\n--------\n' + normWT2);
-				thisResult.htmlDiff = diff;
-				thisResult.type = 'fail';
-				// Provide context for semantic diffs
-				thisResult.wtDiff = formatDiff(25);
-			}
-		}
-		results.push( thisResult );
-	}
-	cb( null, env, results );
-};
-
-var doubleRoundtripDiff = function ( env, offsets, src, body, out, cb ) {
-	if ( offsets.length > 0 ) {
-		env.setPageSrcInfo( out );
-		env.errCB = function ( error ) {
-			cb( error, env, [] );
-			process.exit( 1 );
-		};
-
-		var parserPipeline = env.pipelineFactory.getPipeline('text/x-mediawiki/full');
-		parserPipeline.once( 'document', checkIfSignificant.bind( null, env, offsets, src, body, out, cb ) );
-		parserPipeline.processToplevelDoc( out );
-
-	} else {
-		cb( null, env, [] );
-	}
-};
-
-var parsoidPost = function (env, parsoidURL, prefix, title, text, oldid,
-					recordSizes, profilePrefix, cb) {
-	var data = {};
-	if ( oldid ) {
-		data.oldid = oldid;
-		data.html = text;
-	} else {
-		data.wt = text;
-	}
-
-	// make sure parsoidURL ends on /
-	if ( !/\/$/.test(parsoidURL) ) {
-		parsoidURL += '/';
-	}
-
-	var options = {
-		uri: parsoidURL + prefix + '/' + encodeURI(title),
-		method: 'POST',
-		headers: {
-			'Content-Type': 'application/x-www-form-urlencoded',
-		},
-		encoding: 'utf8',
-		form: data
-	};
-
-	Util.retryingHTTPRequest( 10, options, function( err, res, body ) {
-		if (err) {
-			cb( err, null );
-		} else if (res.statusCode !== 200) {
-			cb(res.body, null);
-		} else {
-			if ( env.profile ) {
-				if (!profilePrefix) {
-					profilePrefix = '';
+					// offset will now be out-of-sync till we hit
+					// another element with a valid DSR[1] value.
 				}
-				// Record the time it's taken to parse
-				var timePrefix = profilePrefix + (oldid ? 'html2wt' : 'wt2html');
-				if ( res.headers[ 'x-parsoid-performance' ] ) {
-					env.profile.time[ timePrefix ] =
-						parseInt( res.headers[ 'x-parsoid-performance' ].
-							match( /duration=((\d)+);/ )[1], 10 );
-				}
-
-				if (recordSizes) {
-					// Record the sizes
-					var sizePrefix = profilePrefix + (oldid ? 'wt' : 'html');
-					env.profile.size[ sizePrefix + 'raw' ] =
-						body.length;
-					// Compress to record the gzipped size
-					zlib.gzip( res.body, function( err, gzippedbuf ) {
-						if ( !err ) {
-							env.profile.size[ sizePrefix + 'gzip' ] =
-								gzippedbuf.length;
-						}
-						cb( null, body );
-					} );
-				} else {
-					cb(null, body);
-				}
-			} else {
-				cb( null, body );
 			}
-		}
-	} );
-};
-
-var roundTripDiff = function ( env, src, html, out, cb ) {
-	var diff, offsetPairs;
-
-	try {
-		diff = Diff.diffLines(out, src);
-		offsetPairs = Diff.convertDiffToOffsetPairs(diff);
-
-		if ( diff.length > 0 ) {
-			var body = domino.createDocument( html ).body;
-			doubleRoundtripDiff( env, offsetPairs, src, body, out, cb );
 		} else {
-			cb( null, env, [] );
+			var len = DU.isText(c) ? c.nodeValue.length : DU.decodedCommentLength(c);
+			if (offset + len >= range.start) {
+				// We have an overlap!
+				elts.push(c);
+			}
+			offset += len;
 		}
-	} catch ( e ) {
-		cb( e, env, [] );
+
+		// All done!
+		if (offset > range.end) {
+			break;
+		}
+
+		// Skip over encapsulated content
+		if (DU.isFirstEncapsulationWrapperNode(c)) {
+			c = DU.skipOverEncapsulatedContent(c);
+		} else {
+			c = c.nextSibling;
+		}
 	}
+
+	return elts;
 };
 
-var selserRoundTripDiff = function (env, html, out, diffs, cb) {
-	var selserDiff, offsetPairs,
-		src = env.page.src.replace(/\n(?=\n)/g, '\n ');
-	// Remove the selser trigger comment
-	out = out.replace(/<!--rtSelserEditTestComment-->\n*$/, '');
-	out = out.replace(/\n(?=\n)/g, '\n ');
+var getMatchingHTML = function(env, body, offsetRange, nlDiffs) {
+	// If the diff context straddles a template boundary (*) and if
+	// the HTML context includes the template content in only one
+	// the new/old DOMs, we can falsely flag this as a semantic
+	// diff. To improve the possibility of including the template
+	// content in both DOMs, expand range at both ends by 1 char.
+	//
+	// (*) This happens because our P-wrapping code occasionally
+	//     swallows newlines into template context.
+	// See https://phabricator.wikimedia.org/T89628
+	if (nlDiffs) {
+		offsetRange.start = offsetRange.start - 1;
+		offsetRange.end = offsetRange.end + 1;
+	}
 
-	roundTripDiff(env, src, html, out, function (err, env, selserDiffs) {
-		if (err) {
-			cb(err, env, diffs);
-		} else {
-			for (var sD in selserDiffs) {
-				selserDiffs[sD].selser = true;
-			}
-			if (selserDiffs.length) {
-				diffs = diffs.concat(selserDiffs);
-			}
-			cb(null, env, diffs);
-		}
+	var html = '';
+	var out = findMatchingNodes(env, body, offsetRange);
+	for (var i = 0; i < out.length; i++) {
+		// node need not be an element always!
+		html += DU.serializeNode(out[i], { smartQuote: false }).str;
+	}
+	html = DU.normalizeOut(html);
+
+	// Normalize away <br/>'s added by Parsoid because of newlines in wikitext.
+	// Do this always, not just when nlDiffs is true, because newline diffs
+	// can show up at extremities of other wt diffs.
+	return html.replace(/<p>\s*<br\s*\/?>\s*/g, '<p>').replace(/<p><\/p>/g, '').replace(/(^\s+|\s+$)/g, '');
+};
+
+var normalizeWikitext = function(str) {
+	// Ignore leading tabs vs. leading spaces
+	str = str.replace(/^\t/, ' ');
+	str = str.replace(/\n\t/g, '\n ');
+	// Normalize multiple spaces to single space
+	str = str.replace(/ +/g, ' ');
+	// Eliminate spaces around wikitext chars
+	// gwicke: disabled for now- too aggressive IMO
+	// str = str.replace(/([<"'!#\*:;+-=|{}\[\]\/]) /g, "$1");
+	// Ignore capitalization of tags and void tag indications
+	str = str.replace(/<(\/?)([^ >\/]+)((?:[^>\/]|\/(?!>))*)\/?>/g,
+			function(match, close, name, remaining) {
+		return '<' + close + name.toLowerCase() +
+			remaining.replace(/ $/, '') + '>';
 	});
+	// Ignore whitespace in table cell attributes
+	str = str.replace(/(^|\n|\|(?=\|)|!(?=!))(\{\||\|[\-+]*|!) *([^|\n]*?) *(?=[|\n]|$)/g, '$1$2$3');
+	// Ignore trailing semicolons and spaces in style attributes
+	str = str.replace(/style\s*=\s*"[^"]+"/g, function(match) {
+		return match.replace(/\s|;(?=")/g, '');
+	});
+	// Strip double-quotes
+	str = str.replace(/"([^"]*?)"/g, '$1');
+	// Ignore implicit </small> and </center> in table cells or the end
+	// of the string for now
+	str = str.replace(/(^|\n)<\/(?:small|center)>(?=\n[|!]|\n?$)/g, '');
+	str = str.replace(/([|!].*?)<\/(?:small|center)>(?=\n[|!]|\n?$)/gi, '$1');
+	return str;
 };
 
-// Returns a Promise for an { env, rtDiffs } object.  `cb` is optional.
-var fetch = function ( page, options, cb ) {
-	cb = JSUtils.mkPromised( cb, [ 'env', 'rtDiffs' ] );
-	var prefix = options.prefix || 'enwiki';
+// Get diff substrings from offsets
+var formatDiff = function(oldWt, newWt, offset, context) {
+	return [
+		'----',
+		oldWt.substring(offset[0].start - context, offset[0].end + context),
+		'++++',
+		newWt.substring(offset[1].start - context, offset[1].end + context),
+	].join('\n');
+};
 
-	if ( options.apiURL ) {
-		prefix = 'customwiki';
-	}
-
-	var envCb = function ( err, env ) {
-		env.errCB = function ( error ) {
-			cb( error, env, [] );
-		};
-		if ( err !== null ) {
-			env.errCB( err );
-			return;
-		}
-		env.profile = { time: { total: 0, total_timer: new Date() }, size: {} };
-
-		var target = env.resolveTitle( env.normalizeTitle( env.page.name ), '' );
-		var tpr = new TemplateRequest( env, target, null );
-
-		tpr.once( 'src', function ( err, src_and_metadata ) {
-			if ( err ) {
-				cb( err, env, [] );
-			} else {
-				// Shortcut for calling parsoidPost with common options
-				var parsoidPostShort = function (postBody, postOldId,
-						postRecordSizes, postProfilePrefix, postCb) {
-					parsoidPost(env, options.parsoidURL, prefix, page,
-						postBody, postOldId, postRecordSizes, postProfilePrefix,
-						function (err, postResult) {
-							if (err) {
-								cb(err, env, []);
-							} else {
-								postCb(postResult);
-							}
-						});
-					};
-
-				// Once we have the diffs between the round-tripped wt,
-				// to test rt selser we need to modify the HTML and request
-				// the wt again to compare with selser, and then concat the
-				// resulting diffs to the ones we got from basic rt
-				var rtSelserTest = function (origHTMLBody, err, env, rtDiffs) {
-					if (err) {
-						cb(err, env, rtDiffs);
-					} else {
-						var newDocument = DU.parseHTML(origHTMLBody),
-							newNode = newDocument.createComment('rtSelserEditTestComment');
-						newDocument.body.appendChild(newNode);
-						parsoidPostShort(newDocument.outerHTML,
-							src_and_metadata.revision.revid, false, 'selser',
-							function (wtSelserBody) {
-								// Finish the total time now
-								if ( env.profile && env.profile.time ) {
-									env.profile.time.total += new Date() - env.profile.time.total_timer;
-								}
-
-								selserRoundTripDiff(env, origHTMLBody, wtSelserBody, rtDiffs, cb);
-							});
-					}
-				};
-
-				env.setPageSrcInfo(src_and_metadata);
-				// First, fetch the HTML for the requested page's wikitext
-				parsoidPostShort(env.page.src, null, true, null, function (htmlBody) {
-					// Now, request the wikitext for the obtained HTML
-					parsoidPostShort(htmlBody,
-						src_and_metadata.revision.revid, true, null,
-						function (wtBody) {
-							roundTripDiff(env, env.page.src, htmlBody, wtBody,
-								rtSelserTest.bind(null, htmlBody));
-						});
-				});
+function stripElementIds(node) {
+	while (node) {
+		if (DU.isElt(node)) {
+			var id = node.getAttribute('id');
+			if (/^mw[\w-]{2,}$/.test(id)) {
+				node.removeAttribute('id');
 			}
-		} );
-	};
-
-	// options are ParsoidConfig options if module.parent, otherwise they
-	// are CLI options (so use the Util.set* helpers to process them)
-	var parsoidConfig = new ParsoidConfig( module.parent ? options : null, { defaultWiki: prefix } );
-	if (!module.parent) {
-		// only process CLI flags if we're running as a CLI program.
-		Util.setTemplatingAndProcessingFlags( parsoidConfig, options );
-		Util.setDebuggingFlags( parsoidConfig, options );
-	}
-
-	MWParserEnvironment.getParserEnv( parsoidConfig, null, { prefix: prefix, pageName: page }, envCb );
-	return cb.promise;
-};
-
-var cbCombinator = function ( formatter, cb, err, env, text ) {
-	cb( err, formatter( env, err, text ) );
-};
-
-var consoleOut = function ( err, output ) {
-	if ( err ) {
-		console.log( 'ERROR: ' + err);
-		if (err.stack) {
-			console.log( 'Stack trace: ' + err.stack);
+			if (node.firstChild) {
+				stripElementIds(node.firstChild);
+			}
 		}
-		process.exit( 1 );
-	} else {
-		console.log( output );
-		process.exit( 0 );
+		node = node.nextSibling;
 	}
-};
-
-if ( typeof module === 'object' ) {
-	module.exports.fetch = fetch;
-	module.exports.plainFormat = plainCallback;
-	module.exports.xmlFormat = xmlCallback;
-	module.exports.cbCombinator = cbCombinator;
 }
 
-if ( !module.parent ) {
-	var standardOpts = Util.addStandardOptions({
-		'xml': {
-			description: 'Use xml callback',
-			'boolean': true,
-			'default': false
-		},
-		'prefix': {
-			description: 'Which wiki prefix to use; e.g. "enwiki" for English wikipedia, "eswiki" for Spanish, "mediawikiwiki" for mediawiki.org',
-			'default': ''
-		},
-		'parsoidURL': {
-			description: 'The URL for the Parsoid API',
+var checkIfSignificant = function(env, offsets, data) {
+	var oldWt = data.oldWt;
+	var newWt = data.newWt;
+
+	var oldBody = domino.createDocument(data.oldHTML.body).body;
+	var newBody = domino.createDocument(data.newHTML.body).body;
+
+	// Merge data-parsoid so that HTML nodes can be compared and diff'ed.
+	DU.applyDataParsoid(oldBody.ownerDocument, data.oldDp.body);
+	DU.applyDataParsoid(newBody.ownerDocument, data.newDp.body);
+
+	// Strip 'mw..' ids from the DOMs. This matters for 2 scenarios:
+	// * reduces noise in visual diffs
+	// * all other things being equal after normalization, we don't
+	//   assume DOMs are different simply because ids are different
+	stripElementIds(oldBody.ownerDocument.body);
+	stripElementIds(newBody.ownerDocument.body);
+
+	var i, offset;
+	var results = [];
+	// Use the full tests for fostered content.
+	// Fostered content => semantic diffs.
+	if (!/("|&quot;)fostered("|&quot;)\s*:\s*true\b/.test(oldBody.outerHTML)) {
+		// Quick test for no semantic diffs
+		// If parsoid-normalized HTML for old and new wikitext is identical,
+		// the wt-diffs are purely syntactic.
+		var normalizedOld = DU.normalizeOut(oldBody, true);
+		var normalizedNew = DU.normalizeOut(newBody, true);
+		if (normalizedOld === normalizedNew) {
+			for (i = 0; i < offsets.length; i++) {
+				offset = offsets[i];
+				results.push({
+					type: 'skip',
+					offset: offset,
+					wtDiff: formatDiff(oldWt, newWt, offset, 0),
+				});
+			}
+			return results;
 		}
+	}
+
+	// Now, proceed with full blown diffs
+	for (i = 0; i < offsets.length; i++) {
+		offset = offsets[i];
+		var thisResult = { offset: offset };
+
+		// Default: syntactic diff + no diff context
+		thisResult.type = 'skip';
+		thisResult.wtDiff = formatDiff(oldWt, newWt, offset, 0);
+
+		// Is this a newline separator diff?
+		var oldStr = oldWt.substring(offset[0].start, offset[0].end);
+		var newStr = newWt.substring(offset[1].start, offset[1].end);
+		var nlDiffs = /^\s*$/.test(oldStr) && /^\s*$/.test(newStr)
+			&& (/\n/.test(oldStr) || /\n/.test(newStr));
+
+		// Check if this is really a semantic diff
+		var oldHTML = getMatchingHTML(env, oldBody, offset[0], nlDiffs);
+		var newHTML = getMatchingHTML(env, newBody, offset[1], nlDiffs);
+		var diff = Diff.htmlDiff(oldHTML, newHTML, false, true, true);
+		if (diff.length > 0) {
+			// Normalize wts to check if we really have a semantic diff
+			var wt1 = normalizeWikitext(oldWt.substring(offset[0].start, offset[0].end));
+			var wt2 = normalizeWikitext(newWt.substring(offset[1].start, offset[1].end));
+			if (wt1 !== wt2) {
+				// Syntatic diff + provide context for semantic diffs
+				thisResult.type = 'fail';
+				thisResult.wtDiff = formatDiff(oldWt, newWt, offset, 25);
+
+				// Don't clog the rt-test server db with humongous diffs
+				if (diff.length > 2000) {
+					diff = diff.substring(0, 2000) + "-- TRUNCATED TO 2000 chars --";
+				}
+				thisResult.htmlDiff = diff;
+			}
+		}
+		results.push(thisResult);
+	}
+
+	return results;
+};
+
+function parsoidPost(env, options, cb) {
+	var title = encodeURIComponent(options.title);
+
+	var httpOptions = {
+		method: 'POST',
+		json: true,
+		body: options.data,
+	};
+
+	var uri = options.uri;
+	// make sure the Parsoid URI ends on /
+	if (!/\/$/.test(uri)) {
+		uri += '/';
+	}
+	uri += 'v2/' + options.domain + '/';
+	if (options.html2wt) {
+		uri += 'wt/' + title;
+		if (options.oldid) {
+			uri += '/' + options.oldid;
+		}
+		httpOptions.body.scrubWikitext = true;
+	} else {  // wt2html
+		uri += 'pagebundle/' + title;
+	}
+	httpOptions.uri = uri;
+
+	return new Promise(function(resolve, reject) {
+		// TODO: convert Util.retryingHTTPRequest to a promise returning func
+		Util.retryingHTTPRequest(10, httpOptions, function(err, res, body) {
+			if (!err && res.statusCode !== 200) {
+				err = new Error('Got status code: ' + res.statusCode);
+			}
+			if (err) { return reject(err); }
+
+			// FIXME: Parse time was removed from profiling when we stopped
+			// sending the x-parsoid-performance header.
+			if (options.recordSizes) {
+				var prefix = '';
+				if (options.profilePrefix) {
+					prefix += options.profilePrefix + ':';
+				}
+				var str;
+				if (options.html2wt) {
+					prefix += 'html:';
+					str = body.wikitext.body;
+				} else {
+					prefix += 'wt:';
+					str = body.html.body;
+				}
+				env.profile.size[prefix + 'raw'] = str.length;
+				// Compress to record the gzipped size
+				zlib.gzip(str, function(err, gzippedbuf) {
+					if (err) { return reject(err); }
+					env.profile.size[prefix + 'gzip'] = gzippedbuf.length;
+					resolve(body);
+				});
+			} else {
+				resolve(body);
+			}
+		});
+	}).nodify(cb);
+}
+
+function roundTripDiff(env, parsoidOptions, data) {
+	var diff = Diff.diffLines(data.newWt, data.oldWt);
+	var offsets = Diff.convertDiffToOffsetPairs(diff);
+	if (!diff.length || !offsets.length) { return []; }
+
+	var options = Object.assign({
+		wt2html: true,
+		data: { wikitext: data.newWt },
+	}, parsoidOptions);
+	return parsoidPost(env, options).then(function(body) {
+		data.newHTML = body.html;
+		data.newDp = body['data-parsoid'];
+		return checkIfSignificant(env, offsets, data);
+	});
+}
+
+// Returns a Promise for a formatted string.  `cb` is optional.
+function runTests(title, options, formatter, cb) {
+	var setup = function(parsoidConfig) {
+		// options are ParsoidConfig options if module.parent, otherwise they
+		// are CLI options (so use the Util.set* helpers to process them)
+		if (module.parent) {
+			if (options && options.setup) {
+				options.setup(parsoidConfig);
+			}
+		} else {
+			Util.setTemplatingAndProcessingFlags(parsoidConfig, options);
+			Util.setDebuggingFlags(parsoidConfig, options);
+		}
+	};
+	var parsoidConfig = new ParsoidConfig({ setup: setup });
+	var err, domain, prefix;
+	if (options.prefix) {
+		// If prefix is present, use that.
+		prefix = options.prefix;
+		// Get the domain from the mw api map.
+		if (parsoidConfig.mwApiMap.has(prefix)) {
+			domain = parsoidConfig.mwApiMap.get(prefix).domain;
+		} else {
+			err = new Error('Couldn\'t find the domain for prefix: ' + prefix);
+		}
+	} else if (options.domain) {
+		domain = options.domain;
+		prefix = parsoidConfig.reverseMwApiMap.get(domain);
+	} else {
+		err = new Error('No domain or prefix provided.');
+	}
+	var env;
+	var closeFormatter = function(err, results) {
+		return formatter(err, prefix, title, results, env && env.profile);
+	};
+	var parsoidOptions = {
+		uri: options.parsoidURL,
+		domain: domain,
+		title: title,
+	};
+	var data = {};
+	return Promise[err ? 'reject' : 'resolve'](err).then(function() {
+		return MWParserEnvironment.getParserEnv(
+			parsoidConfig, null, { prefix: prefix, pageName: title }
+		);
+	}).then(function(_env) {
+		env = _env;
+		env.profile = { time: { total: 0, start: Date.now() }, size: {} };
+		var target = env.resolveTitle(env.normalizeTitle(env.page.name), '');
+		return TemplateRequest.setPageSrcInfo(env, target, null);
+	}).then(function() {
+		data.oldWt = env.page.src;
+		// First, fetch the HTML for the requested page's wikitext
+		var options = Object.assign({
+			wt2html: true,
+			recordSizes: true,
+			data: { wikitext: data.oldWt },
+		}, parsoidOptions);
+		return parsoidPost(env, options);
+	}).then(function(body) {
+		data.oldHTML = body.html;
+		data.oldDp = body['data-parsoid'];
+		// Now, request the wikitext for the obtained HTML
+		var options = Object.assign({
+			html2wt: true,
+			recordSizes: true,
+			data: {
+				html: data.oldHTML,
+				original: {
+					'data-parsoid': data.oldDp,
+					wikitext: { body: data.oldWt, },
+				},
+			},
+		}, parsoidOptions);
+		return parsoidPost(env, options);
+	}).then(function(body) {
+		data.newWt = body.wikitext.body;
+		return roundTripDiff(env, parsoidOptions, data);
+	}).then(function(results) {
+		data.diffs = results;
+		// Once we have the diffs between the round-tripped wt,
+		// to test rt selser we need to modify the HTML and request
+		// the wt again to compare with selser, and then concat the
+		// resulting diffs to the ones we got from basic rt
+		var newDocument = DU.parseHTML(data.oldHTML.body);
+		var newNode = newDocument.createComment('rtSelserEditTestComment');
+		newDocument.body.appendChild(newNode);
+		var options = Object.assign({
+			html2wt: true,
+			useSelser: true,
+			oldid: env.page.meta.revision.revid,
+			data: {
+				html: newDocument.outerHTML,
+				original: {
+					'data-parsoid': data.oldDp,
+					wikitext: { body: data.oldWt },
+					html: data.oldHTML,
+				},
+			},
+			profilePrefix: 'selser',
+		}, parsoidOptions);
+		return parsoidPost(env, options);
+	}).then(function(body) {
+		var out = body.wikitext.body;
+
+		// Finish the total time now
+		// FIXME: Is the right place to end it?
+		if (env.profile && env.profile.time) {
+			env.profile.time.total = Date.now() - env.profile.time.start;
+		}
+
+		// Remove the selser trigger comment
+		data.newWt = out.replace(/<!--rtSelserEditTestComment-->\n*$/, '');
+
+		return roundTripDiff(env, parsoidOptions, data);
+	}).then(function(selserDiffs) {
+		selserDiffs.forEach(function(diff) {
+			diff.selser = true;
+		});
+		if (selserDiffs.length) {
+			data.diffs = data.diffs.concat(selserDiffs);
+		}
+		return data.diffs;
+	}).then(
+		closeFormatter.bind(null, null),
+		closeFormatter
+	).nodify(cb);
+}
+
+
+if (require.main === module) {
+	var options = Util.addStandardOptions({
+		xml: {
+			description: 'Use xml callback',
+			boolean: true,
+			default: false,
+		},
+		prefix: {
+			description: 'Which wiki prefix to use; e.g. "enwiki" for ' +
+				'English wikipedia, "eswiki" for Spanish, "mediawikiwiki" ' +
+				'for mediawiki.org',
+			default: '',
+		},
+		domain: {
+			description: 'Which wiki to use; e.g. "en.wikipedia.org" for' +
+				' English wikipedia',
+			default: 'en.wikipedia.org',
+		},
+		parsoidURL: {
+			description: 'The URL for the Parsoid API',
+		},
 	}, {
 		// defaults for standard options
-		rtTestMode: true // suppress noise by default
+		rtTestMode: true,  // suppress noise by default
 	});
 
 	var opts = yargs.usage(
-		'Usage: $0 [options] <page-title> \n\n',
-		standardOpts
-	).check(Util.checkUnknownArgs.bind(null, standardOpts));
+		'Usage: $0 [options] <page-title> \n\n', options
+	).check(Util.checkUnknownArgs.bind(null, options));
 
-	var callback;
 	var argv = opts.argv;
-	var title = argv._[0];
-
-	if ( title ) {
-		callback = cbCombinator.bind( null,
-		                              Util.booleanOption( argv.xml ) ?
-		                              xmlCallback : plainCallback, consoleOut );
-		if ( !argv.parsoidURL ) {
-			// Start our own Parsoid server
-			// TODO: This will not be necessary once we have a top-level testing
-			// script that takes care of setting everything up.
-			var apiServer = require( './apiServer.js' );
-			apiServer.startParsoidServer({ quiet: true }).then(function( ret ) {
-				argv.parsoidURL = ret.url;
-				fetch( title, argv, callback );
-			} ).done();
-			apiServer.exitOnProcessTerm();
-		} else {
-			fetch( title, argv, callback );
-		}
-	} else {
-		opts.showHelp();
+	if (!argv._.length) {
+		return opts.showHelp();
 	}
+	var title = String(argv._[0]);
 
+	Promise.resolve().then(function() {
+		if (argv.parsoidURL) { return; }
+
+		// Start our own Parsoid server
+		// TODO: This will not be necessary once we have a top-level testing
+		// script that takes care of setting everything up.
+		var apiServer = require('./apiServer.js');
+		var parsoidOptions = { quiet: true };
+		if (argv.apiURL) {
+			parsoidOptions.mockUrl = argv.apiURL;
+			argv.prefix = 'customwiki';
+		}
+		apiServer.exitOnProcessTerm();
+		return apiServer.startParsoidServer(parsoidOptions).then(function(ret) {
+			argv.parsoidURL = ret.url;
+		});
+	}).then(function() {
+		var formatter = Util.booleanOption(argv.xml) ? xmlFormat : plainFormat;
+		return runTests(title, argv, formatter);
+	}).then(function(output) {
+		console.log(output);
+		process.exit(0);
+	}).done();
+} else if (typeof module === 'object') {
+	module.exports.runTests = runTests;
+	module.exports.xmlFormat = xmlFormat;
 }
