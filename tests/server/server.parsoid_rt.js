@@ -1,7 +1,7 @@
 "use strict";
 
-var RH = require("./render.helpers.js").RenderHelpers,
-	fs = require('fs');
+var RH = require('./render.helpers.js').RenderHelpers;
+var fs = require('fs');
 
 var dbPagesWithRTSelserErrors =
 	'SELECT pages.title, pages.prefix, commits.hash, ' +
@@ -64,7 +64,7 @@ var makeOneDiffRegressionRow = function(urlPrefix, row) {
 	return [
 		RH.pageTitleData(urlPrefix, row),
 		RH.oldCommitLinkData(urlPrefix, row.old_commit, row.new_commit, row.title, row.prefix),
-		RH.newCommitLinkData(urlPrefix, row.old_commit, row.new_commit, row.title, row.prefix)
+		RH.newCommitLinkData(urlPrefix, row.old_commit, row.new_commit, row.title, row.prefix),
 	];
 };
 
@@ -83,19 +83,25 @@ function updateIndexData(data, row) {
 	data.latestRevision.push({
 		description: 'RT selser errors',
 		value: row[0].rtselsererrors,
-		url: '/rtselsererrors/' + row[0].maxhash
+		url: '/rtselsererrors/' + row[0].maxhash,
 	});
 
 	data.flaggedReg = [
-		{ description: 'one fail',
+		{
+			description: 'one fail',
 			info: 'one new semantic diff, previously perfect',
-			url: 'onefailregressions/between/' + row[0].secondhash + '/' + row[0].maxhash },
-		{ description: 'one skip',
+			url: 'onefailregressions/between/' + row[0].secondhash + '/' + row[0].maxhash,
+		},
+		{
+			description: 'one skip',
 			info: 'one new syntactic diff, previously perfect',
-			url: 'oneskipregressions/between/' + row[0].secondhash + '/' + row[0].maxhash },
-		{ description: 'other new fails',
+			url: 'oneskipregressions/between/' + row[0].secondhash + '/' + row[0].maxhash,
+		},
+		{
+			description: 'other new fails',
 			info: 'other cases with semantic diffs, previously only syntactic diffs',
-			url: 'newfailsregressions/between/' + row[0].secondhash + '/' + row[0].maxhash }
+			url: 'newfailsregressions/between/' + row[0].secondhash + '/' + row[0].maxhash,
+		},
 	];
 }
 
@@ -103,22 +109,26 @@ function setupEndpoints(settings, app, mysql, db, hbs) {
 	// SSS FIXME: this is awkward
 	RH.settings = settings;
 	var displayOneDiffRegressions = function(numFails, numSkips, subheading, headingLinkData, req, res) {
-		var r1 = req.params[0],
-			r2 = req.params[1],
-			page = (req.params[2] || 0) - 0,
-			offset = page * 40,
-			relativeUrlPrefix = '../../../';
+		var r1 = req.params[0];
+		var r2 = req.params[1];
+		var page = (req.params[2] || 0) - 0;
+		var offset = page * 40;
+		var relativeUrlPrefix = '../../../';
 		db.query (dbNumOneDiffRegressionsBetweenRevs, [r2, r1, numFails, numSkips], function(err, row) {
 			if (err) {
 				res.send(err.toString(), 500);
 			} else {
 				var headingLink = [
-					{name: headingLinkData[2],
+					{
+						name: headingLinkData[2],
 						info: headingLinkData[1],
-						url: relativeUrlPrefix + headingLinkData[3] + 'regressions/between/' + r1 + '/' + r2},
-					{name: 'other new fails',
+						url: relativeUrlPrefix + headingLinkData[3] + 'regressions/between/' + r1 + '/' + r2,
+					},
+					{
+						name: 'other new fails',
 						info: 'other cases with semantic diffs, previously only syntactic diffs',
-						url: relativeUrlPrefix + 'newfailsregressions/between/' + r1 + '/' + r2}
+						url: relativeUrlPrefix + 'newfailsregressions/between/' + r1 + '/' + r2,
+					},
 				];
 				var data = {
 					page: page,
@@ -129,7 +139,7 @@ function setupEndpoints(settings, app, mysql, db, hbs) {
 						row[0].numFlaggedRegressions,
 					subheading: subheading,
 					headingLink: headingLink,
-					header: ['Title', 'Old Commit', 'New Commit']
+					header: ['Title', 'Old Commit', 'New Commit'],
 				};
 				db.query(dbOneDiffRegressionsBetweenRevs, [r2, r1, numFails, numSkips, offset],
 					RH.displayPageList.bind(null, hbs, res, data, makeOneDiffRegressionRow));
@@ -137,27 +147,27 @@ function setupEndpoints(settings, app, mysql, db, hbs) {
 		});
 	};
 
-	var GET_rtselsererrors = function(req, res) {
-		var commit = req.params[0],
-			page = (req.params[1] || 0) - 0,
-			offset = page * 40,
-			relativeUrlPrefix = (req.params[1] ? '../../' : '../'),
-			data = {
+	var getRtselsererrors = function(req, res) {
+		var commit = req.params[0];
+		var page = (req.params[1] || 0) - 0;
+		var offset = page * 40;
+		var relativeUrlPrefix = (req.params[1] ? '../../' : '../');
+		var data = {
 				page: page,
 				relativeUrlPrefix: relativeUrlPrefix,
 				urlPrefix: relativeUrlPrefix + 'rtselsererrors/' + commit,
 				urlSuffix: '',
 				heading: 'Pages with rt selser errors',
-				header: ['Title', 'Commit', 'Syntactic diffs', 'Semantic diffs', 'Errors']
+				header: ['Title', 'Commit', 'Syntactic diffs', 'Semantic diffs', 'Errors'],
 			};
-		var makeSelserErrorRow = function(row) {
-			var prefix = encodeURIComponent(row.prefix),
-				title = encodeURIComponent(row.title);
+		var makeSelserErrorRow = function(urlPrefix, row) {
+			var prefix = encodeURIComponent(row.prefix);
+			var title = encodeURIComponent(row.title);
 
 			var rowData = {
 				title: row.prefix + ':' + row.title,
 				latest: 'latestresult/' + prefix + '/' + title,
-				perf: 'pageperfstats/' + prefix + '/' + title
+				perf: 'pageperfstats/' + prefix + '/' + title,
 			};
 
 			if (RH.settings.resultServer) {
@@ -169,32 +179,32 @@ function setupEndpoints(settings, app, mysql, db, hbs) {
 
 			return [
 				rowData,
-				RH.commitLinkData(row.hash, row.title, row.prefix),
+				RH.commitLinkData(urlPrefix, row.hash, row.title, row.prefix),
 				row.skips,
 				row.fails,
-				row.errors === null ? 0 : row.errors
+				row.errors === null ? 0 : row.errors,
 			];
 		};
 		db.query(dbPagesWithRTSelserErrors, [commit, offset],
 			RH.displayPageList.bind(null, hbs, res, data, makeSelserErrorRow));
 	};
 
-	var GET_oneFailRegressions = displayOneDiffRegressions.bind(
+	var getOneFailRegressions = displayOneDiffRegressions.bind(
 		null, 1, 0, 'Old Commit: perfect | New Commit: one semantic diff',
 		['onefail', 'one new syntactic diff, previously perfect', 'one skip regressions', 'oneskip']
 	);
 
-	var GET_oneSkipRegressions = displayOneDiffRegressions.bind(
+	var getOneSkipRegressions = displayOneDiffRegressions.bind(
 		null, 0, 1, 'Old Commit: perfect | New Commit: one syntactic diff',
 		['oneskip', 'one new semantic diff, previously perfect', 'one fail regressions', 'onefail']
 	);
 
-	var GET_newFailsRegressions = function(req, res) {
-		var r1 = req.params[0],
-			r2 = req.params[1],
-			page = (req.params[2] || 0) - 0,
-			offset = page * 40,
-			relativeUrlPrefix = '../../../';
+	var getNewFailsRegressions = function(req, res) {
+		var r1 = req.params[0];
+		var r2 = req.params[1];
+		var page = (req.params[2] || 0) - 0;
+		var offset = page * 40;
+		var relativeUrlPrefix = '../../../';
 		db.query(dbNumNewFailsRegressionsBetweenRevs, [r2, r1], function(err, row) {
 			if (err) {
 				res.send(err.toString(), 500);
@@ -208,14 +218,18 @@ function setupEndpoints(settings, app, mysql, db, hbs) {
 						row[0].numFlaggedRegressions,
 					subheading: 'Old Commit: only syntactic diffs | New Commit: semantic diffs',
 					headingLink: [
-						{name: 'one fail regressions',
+						{
+							name: 'one fail regressions',
 							info: 'one new semantic diff, previously perfect',
-							url: relativeUrlPrefix + 'onefailregressions/between/' + r1 + '/' + r2},
-						{name: 'one skip regressions',
+							url: relativeUrlPrefix + 'onefailregressions/between/' + r1 + '/' + r2,
+						},
+						{
+							name: 'one skip regressions',
 							info: 'one new syntactic diff, previously perfect',
-							url: relativeUrlPrefix + 'oneskipregressions/between/' + r1 + '/' + r2}
+							url: relativeUrlPrefix + 'oneskipregressions/between/' + r1 + '/' + r2,
+						},
 					],
-					header: RH.regressionsHeaderData
+					header: RH.regressionsHeaderData,
 				};
 				db.query(dbNewFailsRegressionsBetweenRevs, [r2, r1, offset],
 					RH.displayPageList.bind(null, hbs, res, data, RH.makeRegressionRow));
@@ -224,16 +238,16 @@ function setupEndpoints(settings, app, mysql, db, hbs) {
 	};
 
 	// Regressions between two revisions that introduce one semantic error to a perfect page.
-	app.get(/^\/onefailregressions\/between\/([^\/]+)\/([^\/]+)(?:\/(\d+))?$/, GET_oneFailRegressions );
+	app.get(/^\/onefailregressions\/between\/([^\/]+)\/([^\/]+)(?:\/(\d+))?$/, getOneFailRegressions);
 
 	// Regressions between two revisions that introduce one syntactic error to a perfect page.
-	app.get(/^\/oneskipregressions\/between\/([^\/]+)\/([^\/]+)(?:\/(\d+))?$/, GET_oneSkipRegressions );
+	app.get(/^\/oneskipregressions\/between\/([^\/]+)\/([^\/]+)(?:\/(\d+))?$/, getOneSkipRegressions);
 
 	// Regressions between two revisions that introduce senantic errors (previously only syntactic diffs).
-	app.get(/^\/newfailsregressions\/between\/([^\/]+)\/([^\/]+)(?:\/(\d+))?$/, GET_newFailsRegressions );
+	app.get(/^\/newfailsregressions\/between\/([^\/]+)\/([^\/]+)(?:\/(\d+))?$/, getNewFailsRegressions);
 
 	// Pages with rt selser errors
-	app.get(/^\/rtselsererrors\/([^\/]+)(?:\/(\d+))?$/, GET_rtselsererrors);
+	app.get(/^\/rtselsererrors\/([^\/]+)(?:\/(\d+))?$/, getRtselsererrors);
 
 	hbs.registerPartial('summary', fs.readFileSync(__dirname + '/views/index-summary-rt.html', 'utf8'));
 }

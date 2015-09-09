@@ -7,7 +7,8 @@ Install dependencies and run tests:
 	$ cd ..  # if you are in this README file's directory
 	$ npm test
 
-== Running parserTests.js ==
+Running parserTests.js
+----------------------
 
 For parserTests, you also need MediaWiki's parser test cases
 (`parserTests.txt`).  Parsoid maintains its own fork of the MediaWiki
@@ -23,7 +24,8 @@ Several options are available for parserTests:
 
 Enjoy!
 
-== Running the round-trip test server ==
+Running the round-trip test server
+----------------------------------
 
 In `tests/server/`, to install the necessary packages, run
 	$ npm install
@@ -43,7 +45,7 @@ you specified in `server.settings.js`:
 	mysql> CREATE USER '$USER'@'localhost' IDENTIFIED BY '$PASSWORD';
 	mysql> CREATE DATABASE $DBNAME;
 	mysql> GRANT ALL PRIVILEGES ON $DBNAME.* TO '$USER'@'localhost';
-	mysql> /quit
+	mysql> \q
 
 Now you'll want to create the initial database:
 
@@ -61,7 +63,8 @@ Now start the server:
 
 	$ node server
 
-== Running the round-trip test clients ==
+Running the round-trip test clients
+-----------------------------------
 
 In `tests/client`, copy `config.example.js` to `config.js` and edit it to your
 taste. In separate windows, as many as you want:
@@ -71,7 +74,8 @@ taste. In separate windows, as many as you want:
 
 Then take a look at [the statistics](http://localhost:8001/).
 
-== Running the dumpgrepper ==
+Running the dumpgrepper
+-----------------------
 
 The dumpgrepper utility is useful to search XML dumps for specific regexp
 patterns. With a simple regexp, an enwiki dump can be grepped in ~20 minutes.
@@ -81,5 +85,5 @@ no need to complicate regexps with entities. It supports JavaScript RegExps.
 
 	$ npm install -g dumpgrepper
 
-More information on [github][https://github.com/wikimedia/dumpgrepper] and the
-[mediawiki wiki][https://www.mediawiki.org/wiki/Parsoid/DumpGrepper].
+More information on [github](https://github.com/wikimedia/dumpgrepper) and the
+[mediawiki wiki](https://www.mediawiki.org/wiki/Parsoid/DumpGrepper).

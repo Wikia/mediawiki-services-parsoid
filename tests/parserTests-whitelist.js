@@ -15,17 +15,11 @@
 
 var testWhiteList = {};
 
-// This test fails for two reasons:
-//  * The test is wrong, there are two colons where there should be :;
-//  * The PHP parser is wrong to close the <dl> after the <dt> containing the <ul>.
-testWhiteList["Definition Lists: Mixed Lists: Test 1"] = "<dl><dd><dl><dt><ul><li> foo\n</li></ul></dt><dd data-parsoid=\"{&quot;tsr&quot;:[8,11]}\"><ul><li> bar\n</li></ul></dd><dt data-parsoid=\"{&quot;tsr&quot;:[16,18]}\"> baz</dt></dl></dd></dl>";
-
 // These tests fail because the PHP parser has seemingly-random rules regarding dd/dt.
 // We are egotistical and assume we got it right, because we are more consistent.
 // Also, the nesting is repeated in funny ways, and we recognize the shared nesting and
 // keep the still-open tags around until the nesting is complete. PHP doesn't.
 testWhiteList["Definition Lists: Mixed Lists: Test 11"] = "<ul><li><ol><li><ul><li><ol><li><dl><dt><ul><li><dl><dt><dl><dt>foo<span typeof=\"mw:Placeholder\" data-parsoid=\"{&quot;src&quot;:&quot; &quot;}\">&nbsp;</span></dt><dd data-parsoid=\"{&quot;tsr&quot;:[13,14],&quot;stx&quot;:&quot;row&quot;}\">bar\n</dd></dl></dt></dl></li></ul></dt><dt data-parsoid=\"{&quot;tsr&quot;:[17,21]}\">boo<span typeof=\"mw:Placeholder\" data-parsoid=\"{&quot;src&quot;:&quot; &quot;}\">&nbsp;</span></dt><dd data-parsoid=\"{&quot;tsr&quot;:[27,28],&quot;stx&quot;:&quot;row&quot;}\">baz</dd></dl></li></ol></li></ul></li></ol></li></ul>";
-testWhiteList["Definition Lists: Weird Ones: Test 1"] = "<ul><li><ol><li><dl><dt><ul><li><dl><dd><dl><dd><dl><dt><dl><dt> foo<span typeof=\"mw:Placeholder\" data-parsoid=\"{&quot;src&quot;:&quot; &quot;}\">&nbsp;</span></dt><dd data-parsoid=\"{&quot;tsr&quot;:[14,15],&quot;stx&quot;:&quot;row&quot;}\"> bar (who uses this?)</dd></dl></dt></dl></dd></dl></dd></dl></li></ul></dt></dl></li></ol></li></ul>";
 
 // Italic/link nesting is changed in this test, but the rendered result is the
 // same. Currently the result is actually an improvement over the MediaWiki
@@ -38,7 +32,7 @@ testWhiteList["A table with nothing but a caption"] = "<table><caption> caption<
 
 // We preserve the trailing whitespace in a table cell, while the PHP parser
 // strips it. It renders the same, and round-trips with the space.
-//testWhiteList["Table rowspan"] = "<table border=\"1\" data-parsoid=\"{&quot;tsr&quot;:[0,11],&quot;bsp&quot;:[0,121]}\">\n<tbody><tr><td data-parsoid=\"{&quot;tsr&quot;:[12,13]}\"> Cell 1, row 1 \n</td><td rowspan=\"2\" data-parsoid=\"{&quot;tsr&quot;:[29,40]}\"> Cell 2, row 1 (and 2) \n</td><td data-parsoid=\"{&quot;tsr&quot;:[64,65]}\"> Cell 3, row 1 \n</td></tr><tr data-parsoid=\"{&quot;tsr&quot;:[81,84]}\">\n<td data-parsoid=\"{&quot;tsr&quot;:[85,86]}\"> Cell 1, row 2 \n</td><td data-parsoid=\"{&quot;tsr&quot;:[102,103]}\"> Cell 3, row 2 \n</td></tr></tbody></table>";
+// testWhiteList["Table rowspan"] = "<table border=\"1\" data-parsoid=\"{&quot;tsr&quot;:[0,11],&quot;bsp&quot;:[0,121]}\">\n<tbody><tr><td data-parsoid=\"{&quot;tsr&quot;:[12,13]}\"> Cell 1, row 1 \n</td><td rowspan=\"2\" data-parsoid=\"{&quot;tsr&quot;:[29,40]}\"> Cell 2, row 1 (and 2) \n</td><td data-parsoid=\"{&quot;tsr&quot;:[64,65]}\"> Cell 3, row 1 \n</td></tr><tr data-parsoid=\"{&quot;tsr&quot;:[81,84]}\">\n<td data-parsoid=\"{&quot;tsr&quot;:[85,86]}\"> Cell 1, row 2 \n</td><td data-parsoid=\"{&quot;tsr&quot;:[102,103]}\"> Cell 3, row 2 \n</td></tr></tbody></table>";
 
 // The PHP parser strips the hash fragment for non-existent pages, but Parsoid does not.
 // TODO: implement link target detection in a DOM postprocessor or on the client
@@ -55,10 +49,10 @@ testWhiteList["Fuzz testing: Parser22"] = "<p><a href=\"http://===r:::https://b\
 
 // Very minor whitespace difference at end of cell (MediaWiki inserts a
 // newline before the close tag even if there was no trailing space in the cell)
-//testWhiteList["Table rowspan"] = "<table border=\"1\"><tbody><tr><td> Cell 1, row 1 </td><td rowspan=\"2\"> Cell 2, row 1 (and 2) </td><td> Cell 3, row 1 </td></tr><tr><td> Cell 1, row 2 </td><td> Cell 3, row 2 </td></tr></tbody></table>";
+// testWhiteList["Table rowspan"] = "<table border=\"1\"><tbody><tr><td> Cell 1, row 1 </td><td rowspan=\"2\"> Cell 2, row 1 (and 2) </td><td> Cell 3, row 1 </td></tr><tr><td> Cell 1, row 2 </td><td> Cell 3, row 2 </td></tr></tbody></table>";
 
 // Inter-element whitespace only
-//testWhiteList["Indented table markup mixed with indented pre content (proposed in bug 6200)"] = "   \n\n<table><tbody><tr><td><pre>\nText that should be rendered preformatted\n</pre></td></tr></tbody></table>";
+// testWhiteList["Indented table markup mixed with indented pre content (proposed in bug 6200)"] = "   \n\n<table><tbody><tr><td><pre>\nText that should be rendered preformatted\n</pre></td></tr></tbody></table>";
 
 
 /* Misc sanitizer / HTML5 differences */
