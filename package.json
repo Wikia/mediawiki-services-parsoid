@@ -2,6 +2,7 @@
 	"name": "parsoid",
 	"description": "Mediawiki parser for the VisualEditor.",
 	"version": "0.2.0-git",
+	"license": "GPL-2.0+",
 	"dependencies": {
 		"alea": "~0.0.9",
 		"async": "~0.9.0",
@@ -27,20 +28,26 @@
 		"newrelic": "~1.5.4"
 	},
 	"devDependencies": {
-		"chai": "~1.9.1",
-		"colors": "~0.6.2",
-		"mocha": "~1.21.4",
-		"supertest": "0.14.0",
-		"istanbul": "0.3.5",
-		"coveralls": "2.11.2"
+		"chai": "latest",
+		"colors": "latest",
+		"mocha": "latest",
+		"supertest": "latest",
+		"istanbul": "latest",
+		"coveralls": "latest"
 	},
 	"main": "lib/index.js",
 	"bin": {
 		"parse.js": "tests/parse.js"
 	},
 	"scripts": {
+		"mocha": "mocha --opts tests/mocha/mocha.opts tests/mocha",
+		"parserTests": "node tests/parserTests.js --wt2html --wt2wt --html2wt --html2html --selser --no-color --quiet --blacklist",
+		"cover-mocha": "istanbul cover _mocha --dir ./coverage/mocha --  --opts tests/mocha/mocha.opts tests/mocha",
+		"cover-parserTests": "istanbul cover tests/parserTests.js --dir ./coverage/parserTests -- --wt2html --wt2wt --html2wt --html2html --selser --no-color --quiet --blacklist",
 		"start": "node api/server.js",
-		"test": "node tests/parserTests.js --wt2html --wt2wt --html2wt --html2html --selser --no-color --quiet --blacklist"
+		"test": "npm run mocha && npm run parserTests",
+		"coverage": "npm run cover-mocha && npm run cover-parserTests && istanbul report",
+		"coveralls": "cat ./coverage/lcov.info | coveralls && rm -rf ./coverage"
 	},
 	"repository": {
 		"type": "git",
