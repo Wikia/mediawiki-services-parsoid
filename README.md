@@ -2,6 +2,7 @@ Parsoid
 =======
 
 [![Build Status](https://travis-ci.org/Wikia/mediawiki-services-parsoid.svg?branch=master)](https://travis-ci.org/Wikia/mediawiki-services-parsoid)
+[![Coverage Status](https://coveralls.io/repos/github/Wikia/mediawiki-services-parsoid/badge.svg?branch=master)](https://coveralls.io/github/Wikia/mediawiki-services-parsoid?branch=SUS-2422)
 
 A combined Mediawiki and html parser in JavaScript running on node.js. Please
 see (https://www.mediawiki.org/wiki/Future/Parser_development) for an overview

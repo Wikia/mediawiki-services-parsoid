@@ -1,10 +1,9 @@
+dist: trusty
+sudo: false
 language: node_js
 
-node_js:
-    - "0.8"
-    - "0.10"
-    - "0.11"
+node_js: ["6"]
 
-before_install:
-    - NODE_VERSION=$(node -e 'console.log(process.version.replace(/[.][0-9]+$/, ""))')
-    - if [ "v0.8" = "$NODE_VERSION" ]; then npm install -g npm ; fi
+script: travis_wait npm run-script coverage
+
+after_success: npm run-script coveralls
