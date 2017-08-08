@@ -22,17 +22,12 @@ var MWParserEnv = require( mp + 'mediawiki.parser.environment.js' ).MWParserEnvi
 	LogData = require( mp + 'LogData.js' ).LogData,
 	DU = require( mp + 'mediawiki.DOMUtils.js' ).DOMUtils,
 	ApiRequest = require( mp + 'mediawiki.ApiRequest.js' ),
-	Diff = require( mp + 'mediawiki.Diff.js' ).Diff,
-	newrelic;
+	Diff = require( mp + 'mediawiki.Diff.js' ).Diff;
 
 var ParsoidCacheRequest = ApiRequest.ParsoidCacheRequest,
 	TemplateRequest = ApiRequest.TemplateRequest;
 
 module.exports = function( parsoidConfig ) {
-
-if ( parsoidConfig.newRelic ) {
-	newrelic = require('newrelic');
-}
 
 var routes = {};
 
@@ -498,9 +493,6 @@ routes.parserEnvMw = function( req, res, next ) {
 // Routes
 
 routes.home = function( req, res ) {
-	if ( newrelic ) {
-		newrelic.setIgnoreTransaction( true );
-	}
 	res.render('home');
 };
 
@@ -672,9 +664,6 @@ routes.post_rtForm = function( req, res ) {
 };
 
 routes.get_article = function( req, res ) {
-	if ( newrelic ) {
-		newrelic.setTransactionName( 'wt2html' );
-	}
 	// Regular article parsing
 	wt2html( req, res );
 };
@@ -682,15 +671,9 @@ routes.get_article = function( req, res ) {
 routes.post_article = function( req, res ) {
 	var body = req.body;
 	if ( req.body.wt ) {
-		if ( newrelic ) {
-			newrelic.setTransactionName( 'wt2html' );
-		}
 		// Form-based article parsing
 		wt2html( req, res, body.wt );
 	} else {
-		if ( newrelic ) {
-			newrelic.setTransactionName( 'html2wt' );
-		}
 		// Regular and form-based article serialization
 		html2wt( req, res, body.html || body.content || '' );
 	}
