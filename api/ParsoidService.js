@@ -11,13 +11,13 @@ var express = require('express'),
 	hbs = require('handlebars'),
 	cluster = require('cluster'),
 	path = require('path'),
+	url = require('url'),
 	util = require('util'),
-	uuid = require('node-uuid').v4;
+	uuid = require('node-uuid').v4,
+	logger = require('../lib/Logger.winston').defaultLogger;
 
 
 function ParsoidService( parsoidConfig, processLogger ) {
-	processLogger.log( "info", "loading ..." );
-
 	// Load routes
 	var routes = require('./routes')( parsoidConfig );
 
@@ -65,6 +65,28 @@ function ParsoidService( parsoidConfig, processLogger ) {
 			processLogger.log( "error", err );
 		}
 	});
+
+	// Middleware to log request context
+	app.use( function ( req, res, next ) {
+		const reqUrl = url.parse(req.url);
+
+		const requestContext = {
+			http_method: req.method,
+			http_url_domain: req.headers.host,
+			http_url_path: reqUrl.pathname
+		};
+
+		if ( req.headers.hasOwnProperty( 'x-trace-id' ) ) {
+			requestContext.trace_id = req.headers['x-trace-id'];
+		}
+
+		if ( req.headers.hasOwnProperty( 'x-parent-span-id' ) ) {
+			requestContext.parent_span_id = req.headers['x-parent-span-id'];
+		}
+
+		logger.info('Incoming request', requestContext);
+		next();
+	} );
 
 
 	// Routes

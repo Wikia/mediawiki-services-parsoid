@@ -243,8 +243,6 @@ var html2wt = function( req, res, html ) {
 		env.page.id = res.local('oldid');
 	}
 
-	env.log('info', 'started serializing');
-
 	if ( env.conf.parsoid.allowCORS ) {
 		// allow cross-domain requests (CORS) so that parsoid service
 		// can be used by third-party sites
@@ -354,7 +352,6 @@ var wt2html = function( req, res, wt ) {
 	}
 
 	function parseWt() {
-		env.log('info', 'started parsing');
 		if ( !res.local('pageName') ) {
 			// clear default page name
 			env.page.name = '';
@@ -445,11 +442,13 @@ var wt2html = function( req, res, wt ) {
 // Middlewares
 
 routes.interParams = function( req, res, next ) {
-	if ( req.params[0].match(/https?:\/\//) ) {
-		parsoidConfig.setInterwiki( req.params[0], req.params[0] );
-		res.local('iwp', req.params[0] );
+	var urlParam = req.params[0];
+
+	if ( urlParam && (urlParam.startsWith( 'http://' ) || urlParam.startsWith( 'https://' ) ) ) {
+		parsoidConfig.setInterwiki( urlParam, urlParam);
+		res.local('iwp', urlParam );
 	} else {
-		res.local('iwp', req.params[0] || parsoidConfig.defaultWiki || '');
+		res.local('iwp', urlParam || parsoidConfig.defaultWiki || '');
 	}
 	res.local('pageName', req.params[1] || '');
 	res.local('oldid', req.body.oldid || req.query.oldid || null);
