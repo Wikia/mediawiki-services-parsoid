@@ -434,4 +434,8 @@ describe('Parsoid API', function() {
 
 	});
 
+	after(function() {
+		apiServer.stopAllServers();
+	});
+
 });
