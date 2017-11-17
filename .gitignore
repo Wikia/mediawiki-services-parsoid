@@ -21,3 +21,5 @@ coverage/
 
 contrib/
 node_modules
+
+package-lock.json
