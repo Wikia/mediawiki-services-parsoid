@@ -1,17 +1,19 @@
 /** Cases for testing the Pasoid API through HTTP */
 'use strict';
-/*global describe, it, before*/
+/*global describe, it, before, after */
+
+require('chai').should();
 
 var apiServer = require('../apiServer.js'),
 	request = require('supertest'),
 	domino = require('domino'),
-	url = require('url'),
-	should = require('chai').should();
+	url = require('url');
 
 describe('Parsoid API', function() {
-	var api, mockHost;
+	var api, mockHost, mockUrl;
 	before(function() {
 		var p = apiServer.startMockAPIServer({}).then(function( ret ) {
+			mockUrl = ret.url;
 			mockHost = url.parse( ret.url ).host;
 			return apiServer.startParsoidServer({ mockUrl: ret.url });
 		}).then(function( ret ) {
@@ -432,6 +434,19 @@ describe('Parsoid API', function() {
 
 		}); // end html2wt
 
+	});
+
+	describe('Dynamic API path', function () {
+		it('supports MW API passed as path parameter', function (done) {
+			request(api)
+				.get(`${mockUrl}/Main_Page?oldid=1`)
+				.expect(200)
+				.expect(function(res) {
+					var doc = domino.createDocument(res.text);
+					doc.body.firstChild.textContent.should.equal("MediaWiki has been successfully installed.");
+				})
+				.end(done);
+		});
 	});
 
 	after(function() {
