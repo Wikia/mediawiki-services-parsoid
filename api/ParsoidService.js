@@ -77,7 +77,13 @@ function ParsoidService( parsoidConfig, processLogger ) {
 
 	// Regexp that matches to all interwikis accepted by the API.
 	var iwRe = parsoidConfig.interwikiRegexp;
-	var uriRe = iwRe + ( iwRe.length ? '|' : '' ) + 'https?%3[aA]%2[fF]%2[fF].*';
+
+	// SUS-3260: Support also non-urlencoded API URL as path parameter
+	var urlRegexPatterns = ['https?%3[aA]%2[fF]%2[fF].*', 'https?://.*'];
+	if (iwRe && iwRe.length) {
+		urlRegexPatterns.push(iwRe);
+	}
+	var uriRe = urlRegexPatterns.join('|');
 
 	app.get( '/', routes.home );
 	app.get( '/_version', routes.version );
