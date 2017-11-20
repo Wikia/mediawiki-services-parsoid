@@ -23,4 +23,5 @@ contrib/
 node_modules
 
 package-lock.json
-k8s-apply.yaml
+k8s/parsoid-apply.yaml
+k8s/metric-apply.yaml

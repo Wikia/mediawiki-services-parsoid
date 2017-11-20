@@ -2,5 +2,4 @@
 .git/
 node_modules/
 coverage/
-k8s.yaml
-k8s-apply.yaml
+k8s/
