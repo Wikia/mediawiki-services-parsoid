@@ -1,0 +1,90 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: parsoid
+  name: parsoid
+  namespace: ${ns}
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 8000
+  selector:
+    app: parsoid
+  type: ClusterIP
+
+---
+apiVersion: apps/v1beta2
+kind: Deployment
+metadata:
+  name: parsoid
+  namespace: ${ns}
+spec:
+  selector:
+    matchLabels:
+      app: parsoid
+  replicas: ${replicas}
+  template:
+    metadata:
+      labels:
+        app: parsoid
+      annotations:
+        wikia.com/keys: '{"es_logs": {"container_name": "parsoid", "es_index": "parsoid"}}'
+    spec:
+      containers:
+      - name: parsoid
+        image: ${imageName}:${version}
+        env:
+        - name: ENV
+          value: ${ns}
+        resources:
+          limits:
+            memory: 3Gi
+          requests:
+            cpu: 500m
+            memory: 1.5Gi
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 8000
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8000
+        ports:
+        - containerPort: 8000
+
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: parsoid
+  namespace: ${ns}
+  annotations:
+    kubernetes.io/ingress.class: traefik
+    traefik.frontend.rule.type: PathPrefixStrip
+spec:
+  rules:
+  - host: ${ns}.parsoid-cache
+    http:
+      paths:
+      - path:
+        backend:
+          serviceName: parsoid
+          servicePort: 80
+  - host: ${ns}.parsoid.${env}.k8s.wikia.net
+    http:
+      paths:
+      - path:
+        backend:
+          serviceName: parsoid
+          servicePort: 80
+  - host: ${env}.k8s.wikia.net
+    http:
+      paths:
+      - path: /parsoid
+        backend:
+          serviceName: parsoid
+          servicePort: 80

@@ -3,8 +3,8 @@ apiVersion: v1
 kind: Service
 metadata:
   labels:
-    app: parsoid
-  name: parsoid
+    app: parsoid-metric-feeder
+  name: parsoid-metric-feeder
   namespace: ${ns}
 spec:
   ports:
@@ -12,29 +12,29 @@ spec:
     protocol: TCP
     targetPort: 8000
   selector:
-    app: parsoid
+    app: parsoid-metric-feeder
   type: ClusterIP
 
 ---
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
-  name: parsoid
+  name: parsoid-metric-feeder
   namespace: ${ns}
 spec:
   selector:
     matchLabels:
-      app: parsoid
+      app: parsoid-metric-feeder
   replicas: ${replicas}
   template:
     metadata:
       labels:
-        app: parsoid
+        app: parsoid-metric-feeder
       annotations:
-        wikia.com/keys: '{"es_logs": {"container_name": "parsoid", "es_index": "parsoid"}}'
+        wikia.com/keys: '{"es_logs": {"container_name": "parsoid", "es_index": "parsoid-metric-feeder"}}'
     spec:
       containers:
-      - name: parsoid
+      - name: parsoid-metric-feeder
         image: ${imageName}:${version}
         env:
         - name: ENV
@@ -60,31 +60,39 @@ spec:
 apiVersion: extensions/v1beta1
 kind: Ingress
 metadata:
-  name: parsoid
+  name: parsoid-metric-feeder
   namespace: ${ns}
   annotations:
     kubernetes.io/ingress.class: traefik
     traefik.frontend.rule.type: PathPrefixStrip
 spec:
   rules:
-  - host: ${ns}.parsoid-cache
+  - host: ${ns}.parsoid-metric-feeder.${env}.k8s.wikia.net
     http:
       paths:
       - path:
         backend:
-          serviceName: parsoid
+          serviceName: parsoid-metric-feeder
           servicePort: 80
-  - host: ${ns}.parsoid.${env}.k8s.wikia.net
+  - host: ${env}.k8s.wikia.net
     http:
       paths:
-      - path:
+      - path: /parsoid-metric-feeder
         backend:
-          serviceName: parsoid
+          serviceName: parsoid-metric-feeder
           servicePort: 80
-  - host: ${ns}.${env}.k8s.wikia.net
-    http:
-      paths:
-      - path: /parsoid
-        backend:
-          serviceName: parsoid
-          servicePort: 80
+
+---
+apiVersion: autoscaling/v1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: parsoid-metric-feeder
+  namespace: prod
+spec:
+  maxReplicas: 16
+  minReplicas: 2
+  targetCPUUtilizationPercentage: 40
+  scaleTargetRef:
+    apiVersion: apps/v1beta2
+    kind: Deployment
+name: parsoid-metric-feeder
