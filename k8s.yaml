@@ -25,7 +25,7 @@ spec:
   selector:
     matchLabels:
       app: parsoid
-  replicas: 1
+  replicas: ${replicas}
   template:
     metadata:
       labels:
