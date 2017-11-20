@@ -436,6 +436,8 @@ describe('Parsoid API', function() {
 
 	});
 
+	// Wikia tests - SUS-3260
+
 	describe('Dynamic API path', function () {
 		it('supports MW API passed as path parameter', function (done) {
 			request(api)
@@ -444,6 +446,16 @@ describe('Parsoid API', function() {
 				.expect(function(res) {
 					var doc = domino.createDocument(res.text);
 					doc.body.firstChild.textContent.should.equal("MediaWiki has been successfully installed.");
+				})
+				.end(done);
+		});
+
+		it('uses relative redirect to oldid', function (done) {
+			request(api)
+				.get(`${mockUrl}/Main_Page`)
+				.expect(302)
+				.expect(function(res) {
+					res.header.location.should.equal('?oldid=1');
 				})
 				.end(done);
 		});

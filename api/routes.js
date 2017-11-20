@@ -396,19 +396,19 @@ var wt2html = function( req, res, wt ) {
 		oldid = env.page.meta.revision.revid;
 		env.log("info", "redirecting to revision", oldid);
 
-		var path = "/";
+		var path;
 		if ( v2 ) {
-			path += [
-				"v2",
+			path = [
+				"/v2",
 				url.parse( env.conf.parsoid.interwikiMap.get( prefix ) ).host,
 				v2.format,
 				encodeURIComponent( target ),
 				oldid
 			].join("/");
 		} else {
-			path += [
-				encodeURIComponent( prefix ),
-				encodeURIComponent( target ) + "?oldid=" + oldid
+			// SUS-3260 Wikia change use fully relative redirect
+			path = [
+				"?oldid=" + oldid
 			].join("/");
 		}
 
