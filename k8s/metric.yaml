@@ -95,4 +95,4 @@ spec:
   scaleTargetRef:
     apiVersion: apps/v1beta2
     kind: Deployment
-name: parsoid-metric-feeder
+    name: parsoid-metric-feeder
