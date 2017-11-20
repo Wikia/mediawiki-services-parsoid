@@ -87,7 +87,7 @@ apiVersion: autoscaling/v1
 kind: HorizontalPodAutoscaler
 metadata:
   name: parsoid-metric-feeder
-  namespace: prod
+  namespace: ${ns}
 spec:
   maxReplicas: 16
   minReplicas: 2
