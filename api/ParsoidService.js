@@ -6,13 +6,16 @@
 require('../lib/core-upgrade.js');
 
 // global includes
-var express = require('express'),
-	compression = require('compression'),
-	hbs = require('handlebars'),
-	cluster = require('cluster'),
-	path = require('path'),
-	util = require('util'),
-	uuid = require('node-uuid').v4;
+var bodyParser = require('body-parser');
+var busboy = require('connect-busboy');
+var compression = require('compression');
+var express = require('express');
+var favicon = require('serve-favicon');
+var hbs = require('express-handlebars');
+var cluster = require('cluster');
+var	path = require('path');
+var	util = require('util');
+var	uuid = require('uuid/v4');
 
 
 function ParsoidService( parsoidConfig, processLogger ) {
@@ -21,38 +24,64 @@ function ParsoidService( parsoidConfig, processLogger ) {
 	// Load routes
 	var routes = require('./routes')( parsoidConfig );
 
-	var app = express.createServer();
+	var app = express();
 
 	// view engine
+	var ve = hbs.create({
+		defaultLayout: 'layout',
+		layoutsDir: path.join(__dirname, '/views'),
+		extname: '.html',
+		helpers: {
+			// block helper to reference js files in page head.
+			jsFiles: function(options) {
+				this.javascripts = options.fn(this);
+			},
+		},
+	});
 	app.set('views', path.join(__dirname, '/views'));
 	app.set('view engine', 'html');
-	app.register('html', hbs);
-
-	// block helper to reference js files in page head.
-	hbs.registerHelper('jsFiles', function(options){
-		this.javascripts = options.fn(this);
-	});
+	app.engine('html', ve.engine);
 
 	// serve static files
 	app.use("/static", express.static(path.join(__dirname, "/static")));
 
 	// favicon
-	app.use(express.favicon(path.join(__dirname, "favicon.ico")));
+	app.use(favicon(path.join(__dirname, "favicon.ico")));
 
 	// Increase the form field size limit from the 2M default.
-	app.use(express.bodyParser({ maxFieldsSize: 15 * 1024 * 1024 }));
+	app.use(bodyParser.json({ limit: 15 * 1024 * 1024 }));
 
 	// Support gzip / deflate transfer-encoding
 	app.use(compression());
 
-	// limit upload file size
-	app.use(express.limit('15mb'));
+	// application/x-www-form-urlencoded
+	// multipart/form-data
+	app.use(busboy({
+		limits: {
+			fields: 10,
+			fieldSize: 15 * 1024 * 102,
+		},
+	}));
+
+	app.use(function(req, res, next) {
+		req.body = req.body || {};
+		if (!req.busboy) {
+			return next();
+		}
+		req.busboy.on('field', function(field, val) {
+			req.body[field] = val;
+		});
+		req.busboy.on('finish', function() {
+			next();
+		});
+		req.pipe(req.busboy);
+	});
 
 	// request ids
 	var buf = new Buffer(16);
 	app.use(function(req, res, next) {
 		uuid(null, buf);
-		res.local('reqId', buf.toString('hex'));
+		res.locals.reqId = buf.toString('hex');
 		next();
 	});
 

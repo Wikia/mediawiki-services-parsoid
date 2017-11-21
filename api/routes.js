@@ -74,7 +74,7 @@ var makeDone = function( reqId ) {
 var sufficientNodeVersion = semver.gte(process.version, '0.10.0');
 
 var cpuTimeout = function( p, res ) {
-	var reqId = res.local("reqId");
+	var reqId = res.locals.reqId;
 	return new Promise(function( resolve, reject ) {
 		if ( cluster.isMaster || !sufficientNodeVersion ) {
 			return p.then( resolve, reject );
@@ -164,7 +164,7 @@ var parse = function( env, req, res ) {
 	env.log('info', 'started parsing');
 
 	var meta = env.page.meta;
-	var v2 = res.local('v2');
+	var v2 = res.locals.v2;
 	var p = Promise.resolve();
 
 	// See if we can reuse transclusion or extension expansions.
@@ -233,14 +233,14 @@ var parse = function( env, req, res ) {
 };
 
 var html2wt = function( req, res, html ) {
-	var env = res.local('env');
-	var v2 = res.local('v2');
+	var env = res.locals.env;
+	var v2 = res.locals.v2;
 
 	if ( req.body.oldwt ) {
 		env.setPageSrcInfo( req.body.oldwt );
 		env.page.id = null;
 	} else {
-		env.page.id = res.local('oldid');
+		env.page.id = res.locals.oldid;
 	}
 
 	env.log('info', 'started serializing');
@@ -308,10 +308,10 @@ var html2wt = function( req, res, html ) {
 };
 
 var wt2html = function( req, res, wt ) {
-	var env = res.local('env'),
-		prefix = res.local('iwp'),
-		oldid = res.local('oldid'),
-		v2 = res.local('v2'),
+	var env = res.locals.env,
+		prefix = res.locals.iwp,
+		oldid = res.locals.oldid,
+		v2 = res.locals.v2,
 		target = env.resolveTitle( env.normalizeTitle( env.page.name ), '' );
 
 	if ( wt ) {
@@ -337,7 +337,7 @@ var wt2html = function( req, res, wt ) {
 						// FIXME: get this from somewhere else
 						'content-type': 'text/html;profile=mediawiki.org/specs/html/1.0.0'
 					},
-					body: DU.serializeNode( res.local('body') ? doc.body : doc )
+					body: DU.serializeNode( res.locals.body ? doc.body : doc )
 				},
 				"data-parsoid": {
 					headers: {
@@ -348,14 +348,14 @@ var wt2html = function( req, res, wt ) {
 			});
 		} else {
 			apiUtils.setHeader(res, env, 'Content-Type', 'text/html; charset=UTF-8');
-			apiUtils.endResponse(res, env,  DU.serializeNode( res.local('body') ? doc.body : doc ));
+			apiUtils.endResponse(res, env,  DU.serializeNode( res.locals.body ? doc.body : doc ));
 		}
 		env.log("info", "completed parsing in", env.performance.duration, "ms");
 	}
 
 	function parseWt() {
 		env.log('info', 'started parsing');
-		if ( !res.local('pageName') ) {
+		if ( !res.locals.pageName ) {
 			// clear default page name
 			env.page.name = '';
 		}
@@ -417,7 +417,7 @@ var wt2html = function( req, res, wt ) {
 	}
 
 	var p;
-	if ( wt && (!res.local('pageName') || !oldid) ) {
+	if ( wt && (!res.locals.pageName || !oldid) ) {
 		// don't fetch the page source
 		env.setPageSrcInfo( wt );
 		p = Promise.resolve();
@@ -447,14 +447,14 @@ var wt2html = function( req, res, wt ) {
 routes.interParams = function( req, res, next ) {
 	if ( req.params[0].match(/https?:\/\//) ) {
 		parsoidConfig.setInterwiki( req.params[0], req.params[0] );
-		res.local('iwp', req.params[0] );
+		res.locals.iwp = req.params[0];
 	} else {
-		res.local('iwp', req.params[0] || parsoidConfig.defaultWiki || '');
+		res.locals.iwp = req.params[0] || parsoidConfig.defaultWiki || '';
 	}
-	res.local('pageName', req.params[1] || '');
-	res.local('oldid', req.body.oldid || req.query.oldid || null);
+	res.locals.pageName = req.params[1] || '';
+	res.locals.oldid = req.body.oldid || req.query.oldid || null;
 	// "body" flag to return just the body (instead of the entire HTML doc)
-	res.local('body', req.query.body || req.body.body);
+	res.locals.body = req.query.body || req.body.body;
 	next();
 };
 
@@ -473,15 +473,15 @@ routes.parserEnvMw = function( req, res, next ) {
 		return Promise.resolve().nodify(callback);
 	}
 	MWParserEnv.getParserEnv(parsoidConfig, null, {
-		prefix: res.local('iwp'),
-		pageName: res.local('pageName'),
+		prefix: res.locals.iwp,
+		pageName: res.locals.pageName,
 		cookie: req.headers.cookie
 	}).then(function( env ) {
 		env.logger.registerBackend(/fatal(\/.*)?/, errBack.bind(this, env));
-		if ( res.local('v2') && res.local('v2').format === "pagebundle" ) {
+		if ( res.locals.v2 && res.locals.v2.format === "pagebundle" ) {
 			env.storeDataParsoid = true;
 		}
-		res.local('env', env);
+		res.locals.env = env;;
 		next();
 	}).catch(function( err ) {
 		// Workaround how logdata flatten works so that the error object is
@@ -547,27 +547,27 @@ routes.redirectOldStyle = function( req, res ) {
 
 // Form-based HTML DOM -> wikitext interface for manual testing
 routes.html2wtForm = function( req, res ) {
-	var env = res.local('env');
+	var env = res.locals.env;
 	apiUtils.renderResponse(res, env, "form", {
 		title: "Your HTML DOM:",
-		action: "/" + res.local('iwp') + "/" + res.local('pageName'),
+		action: "/" + res.locals.iwp + "/" + res.locals.pageName,
 		name: "html"
 	});
 };
 
 // Form-based wikitext -> HTML DOM interface for manual testing
 routes.wt2htmlForm = function( req, res ) {
-	var env = res.local('env');
+	var env = res.locals.env;
 	apiUtils.renderResponse(res, env, "form", {
 		title: "Your wikitext:",
-		action: "/" + res.local('iwp') + "/" + res.local('pageName'),
+		action: "/" + res.locals.iwp + "/" + res.locals.pageName,
 		name: "wt"
 	});
 };
 
 // Round-trip article testing
 routes.roundtripTesting = function( req, res ) {
-	var env = res.local('env');
+	var env = res.locals.env;
 	var target = env.resolveTitle( env.normalizeTitle( env.page.name ), '' );
 
 	var oldid = null;
@@ -590,7 +590,7 @@ routes.roundtripTesting = function( req, res ) {
 // Round-trip article testing with newline stripping for editor-created HTML
 // simulation
 routes.roundtripTestingNL = function( req, res ) {
-	var env = res.local('env');
+	var env = res.locals.env;
 	var target = env.resolveTitle( env.normalizeTitle( env.page.name ), '' );
 
 	var oldid = null;
@@ -614,7 +614,7 @@ routes.roundtripTestingNL = function( req, res ) {
 
 // Round-trip article testing with selser over re-parsed HTML.
 routes.roundtripSelser = function( req, res ) {
-	var env = res.local('env');
+	var env = res.locals.env;
 	var target = env.resolveTitle( env.normalizeTitle( env.page.name ), '' );
 
 	var oldid = null;
@@ -639,17 +639,17 @@ routes.roundtripSelser = function( req, res ) {
 
 // Form-based round-tripping for manual testing
 routes.get_rtForm = function( req, res ) {
-	var env = res.local('env');
+	var env = res.locals.env;
 	apiUtils.renderResponse(res, env, "form", {
 		title: "Your wikitext:",
-		action: "/_rtform/" + res.local('pageName'),
+		action: "/_rtform/" + res.locals.pageName,
 		name: "content"
 	});
 };
 
 // Form-based round-tripping for manual testing
 routes.post_rtForm = function( req, res ) {
-	var env = res.local('env');
+	var env = res.locals.env;
 	// we don't care about \r, and normalize everything to \n
 	env.setPageSrcInfo({
 		revision: { '*': req.body.content.replace(/\r/g, '') }
@@ -696,9 +696,9 @@ routes.v2Middle = function( req, res, next ) {
 		return errOut("Invalid domain.");
 	}
 
-	res.local('iwp', iwp);
-	res.local('pageName', req.params.title || '');
-	res.local('oldid', req.params.revision || null);
+	res.locals.iwp = iwp;;
+	res.locals.pageName = req.params.title || '';;
+	res.locals.oldid = req.params.revision || null;;
 
 	var v2 = Object.assign({ format: req.params.format }, req.body);
 
@@ -710,14 +710,14 @@ routes.v2Middle = function( req, res, next ) {
 	if ( req.method === "POST" ) {
 		var original = v2.original || {};
 		if ( original.revid ) {
-			res.local('oldid', original.revid);
+			res.locals.oldid = original.revid;;
 		}
 		if ( original.title ) {
-			res.local('pageName', original.title);
+			res.locals.pageName = original.title;;
 		}
 	}
 
-	res.local('v2', v2);
+	res.locals.v2 = v2;
 	next();
 };
 
@@ -733,10 +733,10 @@ routes.v2_get = function( req, res ) {
 
 // POST requests
 routes.v2_post = function( req, res ) {
-	var v2 = res.local('v2');
+	var v2 = res.locals.v2;
 
 	function errOut( err, code ) {
-		apiUtils.sendResponse( res, res.local('env'), err, code || 404 );
+		apiUtils.sendResponse( res, res.locals.env, err, code || 404 );
 	}
 
 	if ( wt2htmlFormats.has( v2.format ) ) {
@@ -744,7 +744,7 @@ routes.v2_post = function( req, res ) {
 		var wikitext = (v2.wikitext && typeof v2.wikitext !== "string") ?
 			v2.wikitext.body : v2.wikitext;
 		if ( !wikitext ) {
-			if ( !res.local('pageName') ) {
+			if ( !res.locals.pageName ) {
 				return errOut( "No title or wikitext was provided.", 400 );
 			}
 			// We've been given source for this page
