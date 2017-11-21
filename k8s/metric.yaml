@@ -26,6 +26,11 @@ spec:
     matchLabels:
       app: parsoid-metric-feeder
   replicas: ${replicas}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 2
   template:
     metadata:
       labels:
@@ -49,10 +54,12 @@ spec:
           httpGet:
             path: /
             port: 8000
+          initialDelaySeconds: 12
         readinessProbe:
           httpGet:
             path: /
             port: 8000
+          initialDelaySeconds: 5
         ports:
         - containerPort: 8000
 
