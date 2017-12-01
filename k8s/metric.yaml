@@ -81,7 +81,7 @@ spec:
         backend:
           serviceName: parsoid-metric-feeder
           servicePort: 80
-  - host: ${env}.k8s.wikia.net
+  - host: ${ns}.${env}.k8s.wikia.net
     http:
       paths:
       - path: /parsoid-metric-feeder
