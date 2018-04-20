@@ -1,4 +1,4 @@
-FROM node:6.12.2-alpine
+FROM node:6.14.1-alpine
 
 RUN mkdir -p /usr/wikia/parsoid
 
