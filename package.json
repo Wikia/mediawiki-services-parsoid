@@ -20,7 +20,7 @@
 		"html5": "~1.0.5",
 		"pegjs": "git+https://github.com/arlolra/pegjs#startOffset",
 		"prfun": "~1.0.2",
-		"request": "^2.83.0",
+		"request": "^2.86.0",
 		"semver": "^5.1.0",
 		"serve-favicon": "^2.4.5",
 		"simplediff": "~0.1.1",
