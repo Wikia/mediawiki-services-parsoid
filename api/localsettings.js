@@ -13,10 +13,5 @@ exports.setup = function( parsoidConfig ) {
 			parsoidConfig.parsoidCacheProxy = `http://${envName}.icache.service.consul:80/`;
 			parsoidConfig.defaultAPIProxyURI = `http://${envName}.icache.service.consul:80/`;
 		}
-
-		// Set a proper user agent for metric processor Parsoids
-		if (process.env.USER_AGENT) {
-			parsoidConfig.userAgent = process.env.USER_AGENT;
-		}
 	}
 };
