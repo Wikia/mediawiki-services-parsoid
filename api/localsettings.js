@@ -1,11 +1,6 @@
-/*
- * This is a sample configuration file.
- *
- * Copy this file to localsettings.js and edit that file to fit your needs.
- *
- * Also see the file ParserService.js for more information.
+/**
+ * I am the configuration file
  */
-
 exports.setup = function( parsoidConfig ) {
 	parsoidConfig.useSelser = true;
 	parsoidConfig.maxRequestsPerChild = 100;
@@ -17,6 +12,11 @@ exports.setup = function( parsoidConfig ) {
 			parsoidConfig.parsoidCacheURI = `http://${envName}.parsoid-cache/`;
 			parsoidConfig.parsoidCacheProxy = `http://${envName}.icache.service.consul:80/`;
 			parsoidConfig.defaultAPIProxyURI = `http://${envName}.icache.service.consul:80/`;
+		}
+
+		// Set a proper user agent for metric processor Parsoids
+		if (process.env.USER_AGENT) {
+			parsoidConfig.userAgent = process.env.USER_AGENT;
 		}
 	}
 };

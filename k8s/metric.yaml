@@ -45,6 +45,8 @@ spec:
         env:
         - name: ENV
           value: ${ns}
+        - name: USER_AGENT
+          value: ParsoidMetric/4.20
         resources:
           limits:
             memory: 3Gi
