@@ -34,7 +34,6 @@ describe('Dynamic local settings', function () {
 
 			parsoidConfig.should.not.have.property('parsoidCacheURI');
 			parsoidConfig.should.not.have.property('parsoidCacheProxy');
-			parsoidConfig.should.not.have.property('defaultAPIProxyURI');
 		});
 	});
 
