@@ -37,17 +37,14 @@ describe('Dynamic local settings', function () {
 		});
 	});
 
-	var nonDevTestCases = [ 'prod', 'staging' ];
-	nonDevTestCases.forEach(function (envName) {
-		it(`defines cache properties if env = ${envName}`, function () {
-			process.env.ENV = envName;
+	it('defines cache properties if env = prod', function () {
+		process.env.ENV = 'prod';
 
-			setup(parsoidConfig);
+		setup(parsoidConfig);
 
-			parsoidConfig.should.have.property('parsoidCacheURI', `http://${envName}.parsoid-cache/`);
-			parsoidConfig.should.have.property('parsoidCacheProxy', `http://${envName}.icache.service.consul:80/`);
-			parsoidConfig.should.have.property('defaultAPIProxyURI', `http://${envName}.icache.service.consul:80/`);
-		});
+		parsoidConfig.should.have.property('parsoidCacheURI', 'http://prod.parsoid-cache/');
+		parsoidConfig.should.have.property('parsoidCacheProxy', 'http://prod.icache.service.consul:80/');
+		parsoidConfig.should.have.property('defaultAPIProxyURI', 'http://mediawiki-prod:80/');
 	});
 
 	after(function () {
