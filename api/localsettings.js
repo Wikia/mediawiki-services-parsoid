@@ -11,7 +11,7 @@ exports.setup = function( parsoidConfig ) {
 		if ( envName !== '' && envName !== 'dev' ) {
 			parsoidConfig.parsoidCacheURI = `http://${envName}.parsoid-cache/`;
 			parsoidConfig.parsoidCacheProxy = `http://${envName}.icache.service.consul:80/`;
-			parsoidConfig.defaultAPIProxyURI = `http://${envName}.icache.service.consul:80/`;
+			parsoidConfig.defaultAPIProxyURI = 'http://mediawiki-prod:80/';
 		} else {
 			// PLATFORM-3727: make sure not to send API calls through Fastly in dev as well
 			parsoidConfig.defaultAPIProxyURI = 'http://border.service.consul:80/';
