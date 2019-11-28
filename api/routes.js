@@ -444,7 +444,10 @@ var wt2html = function( req, res, wt ) {
 
 routes.interParams = function( req, res, next ) {
 	if ( req.params[0].match(/https?:\/\//) ) {
-		parsoidConfig.setInterwiki( req.params[0], req.params[0] );
+		// Route requests from staging environments to the appropriate MediaWiki deployment
+		const envMatch = /^.*\.(verify|preview|sandbox[^\.]*)\.(fandom\.com|wikia\.(com|org))/.exec(req.params[0]);
+		const envSpecificProxy = envMatch ? `http://mediawiki-${envMatch[1]}:80` : undefined;
+		parsoidConfig.setInterwiki( req.params[0], req.params[0], envSpecificProxy );
 		res.locals.iwp = req.params[0] ;
 	} else {
 		res.locals.iwp = req.params[0] || parsoidConfig.defaultWiki || '';

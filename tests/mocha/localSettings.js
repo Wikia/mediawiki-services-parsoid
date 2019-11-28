@@ -19,35 +19,28 @@ describe('Dynamic local settings', function () {
 
 		setup(parsoidConfig);
 
-		parsoidConfig.should.not.have.property('parsoidCacheURI');
-		parsoidConfig.should.not.have.property('parsoidCacheProxy');
 		parsoidConfig.should.not.have.property('defaultAPIProxyURI');
 	});
 
 
 	var devTestCases = [ 'dev', 'DEV', 'dEV' ];
 	devTestCases.forEach(function (envName) {
-		it(`does not define cache properties if env = ${envName}`, function () {
+		it(`defines cache property if env = ${envName}`, function () {
 			process.env.ENV = envName;
 
 			setup(parsoidConfig);
 
-			parsoidConfig.should.not.have.property('parsoidCacheURI');
-			parsoidConfig.should.not.have.property('parsoidCacheProxy');
+			parsoidConfig.should.have.property('defaultAPIProxyURI', 'http://border.service.consul:80/');
 		});
 	});
 
-	var nonDevTestCases = [ 'prod', 'staging' ];
-	nonDevTestCases.forEach(function (envName) {
-		it(`defines cache properties if env = ${envName}`, function () {
-			process.env.ENV = envName;
 
-			setup(parsoidConfig);
+	it('defines cache property if env = prod', function () {
+		process.env.ENV = 'prod';
 
-			parsoidConfig.should.have.property('parsoidCacheURI', `http://${envName}.parsoid-cache/`);
-			parsoidConfig.should.have.property('parsoidCacheProxy', `http://${envName}.icache.service.consul:80/`);
-			parsoidConfig.should.have.property('defaultAPIProxyURI', `http://${envName}.icache.service.consul:80/`);
-		});
+		setup(parsoidConfig);
+
+		parsoidConfig.should.have.property('defaultAPIProxyURI', 'http://mediawiki-prod:80/');
 	});
 
 	after(function () {
