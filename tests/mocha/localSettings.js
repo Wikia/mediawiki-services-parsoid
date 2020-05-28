@@ -40,7 +40,7 @@ describe('Dynamic local settings', function () {
 
 		setup(parsoidConfig);
 
-		parsoidConfig.should.have.property('defaultAPIProxyURI', 'http://mediawiki-prod:80/');
+		parsoidConfig.should.have.property('defaultAPIProxyURI', 'http://mediawiki-prod-ucp:80/');
 	});
 
 	after(function () {
