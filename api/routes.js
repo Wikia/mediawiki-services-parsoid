@@ -446,7 +446,12 @@ routes.interParams = function( req, res, next ) {
 	if ( req.params[0].match(/https?:\/\//) ) {
 		// Route requests from staging environments to the appropriate MediaWiki deployment
 		const envMatch = /^.*\.(verify|preview|sandbox[^\.]*)\.(fandom\.com|wikia\.(com|org))/.exec(req.params[0]);
-		const envSpecificProxy = envMatch ? `http://mediawiki-${envMatch[1]}:80` : undefined;
+		let envSpecificProxy;
+		if ( envMatch ) {
+			envSpecificProxy = ['verify', 'preview'].includes(envMatch[1]) ?
+				`http://mediawiki-${envMatch[1]}-ucp:80` :
+				`http://mediawiki-${envMatch[1]}:80`;
+		}
 		parsoidConfig.setInterwiki( req.params[0], req.params[0], envSpecificProxy );
 		res.locals.iwp = req.params[0] ;
 	} else {
