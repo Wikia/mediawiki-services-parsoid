@@ -4,6 +4,7 @@ kind: Service
 metadata:
   labels:
     app: parsoid
+    team: iwing
   name: parsoid
   namespace: ${ns}
 spec:
@@ -21,6 +22,8 @@ kind: Deployment
 metadata:
   name: parsoid
   namespace: ${ns}
+  labels:
+    team: iwing
 spec:
   selector:
     matchLabels:
@@ -36,6 +39,7 @@ spec:
     metadata:
       labels:
         app: parsoid
+        team: iwing
       annotations:
         wikia.com/keys: '{"es_logs": {"container_name": "parsoid", "es_index": "parsoid"}}'
     spec:
@@ -70,6 +74,8 @@ kind: Ingress
 metadata:
   name: parsoid
   namespace: ${ns}
+  labels:
+    team: iwing
   annotations:
     kubernetes.io/ingress.class: traefik
     traefik.frontend.rule.type: PathPrefixStrip
